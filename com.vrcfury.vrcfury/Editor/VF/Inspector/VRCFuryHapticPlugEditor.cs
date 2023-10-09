@@ -147,6 +147,17 @@ namespace VF.Inspector {
                         tooltip: "This allows the plug to extend very slightly past holes to improve collapse visuals." +
                                  " Beware that disabling this may cause plug to appear to 'fold in' near holes like a map, which may be strange."
                     ));
+                    spsBox.Add(VRCFuryEditorUtils.BetterProp(
+                        serializedObject.FindProperty("channel"),
+                        "Channel",
+                        tooltip: "Plugs and Sockets with the same channel can find each other, similarly if they have different channels they will ignore each other." +
+                                 " You can ANIMATE this field to change the channel, which SPS is targeting."
+                    ));
+                    spsBox.Add(VRCFuryEditorUtils.BetterProp(
+                        serializedObject.FindProperty("addChannelToggle"), 
+                        "Auto Generate DPS Channel Toggle",
+                        tooltip: "Automatically generates a toggle to switch between the legacy DPS channel 1 and default."
+                    ));
                 }
                 return c;
             }, enableSps));
@@ -197,7 +208,6 @@ namespace VF.Inspector {
             adv.Add(VRCFuryEditorUtils.BetterCheckbox(configureTps, "(Deprecated) Auto-configure Poiyomi TPS"));
             adv.Add(VRCFuryEditorUtils.BetterCheckbox(serializedObject.FindProperty("addDpsTipLight"), "(Deprecated) Add legacy DPS tip light (must enable in menu)"));
             adv.Add(VRCFuryEditorUtils.BetterCheckbox(serializedObject.FindProperty("spsKeepImports"), "(Developer) Do not flatten SPS imports"));
-            //adv.Add(VRCFuryEditorUtils.BetterProp(serializedObject.FindProperty("channel"), "Channel"));
 
             return container;
         }
