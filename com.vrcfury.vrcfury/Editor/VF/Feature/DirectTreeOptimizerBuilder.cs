@@ -217,6 +217,16 @@ namespace VF.Feature {
                     AddDebug($"Not optimizing (parameter used in some other layer)");
                     continue;
                 }
+                
+                var paramType = fx.GetRaw().parameters
+                    .Where(p => p.name == param)
+                    .Select(p => p.type)
+                    .DefaultIfEmpty(AnimatorControllerParameterType.Float)
+                    .First();
+                if (FullControllerBuilder.VRChatGlobalParams.Contains(param) && paramType == AnimatorControllerParameterType.Int) {
+                    AddDebug($"Not optimizing (using an int VRC built-in, which means >1 is likely)");
+                    continue;
+                }
 
                 eligibleLayers.Add(new EligibleLayer {
                     offState = offClip,

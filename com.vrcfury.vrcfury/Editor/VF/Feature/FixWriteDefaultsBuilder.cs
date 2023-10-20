@@ -45,8 +45,10 @@ namespace VF.Feature {
 
         [FeatureBuilderAction(FeatureOrder.RecordAllDefaults)]
         public void RecordAllDefaults() {
-            var settings = GetBuildSettings();
-            if (settings.useWriteDefaults) return;
+            // We shouldn't need to record defaults if useWriteDefaults is true, BUT due to a vrchat bug,
+            // the defaults state for properties are broken in mirrors, so we're forced to record them all in the base layer.
+            //var settings = GetBuildSettings();
+            //if (settings.useWriteDefaults) return;
 
             foreach (var layer in GetMaintainedLayers(GetFx())) {
                 foreach (var state in new AnimatorIterator.States().From(layer)) {
@@ -67,6 +69,11 @@ namespace VF.Feature {
         public void AdjustWriteDefaults() {
             var settings = GetBuildSettings();
 
+            if (settings.ignoredBroken) {
+                var fx = manager.GetFx();
+                fx.NewBool($"VF/BrokenWd", usePrefix: false, synced: true, networkSynced: false);
+            }
+
             foreach (var controller in manager.GetAllUsedControllers()) {
                 foreach (var layer in GetMaintainedLayers(controller)) {
                     // Direct blend trees break with wd off 100% of the time, so they are a rare case where the layer
@@ -85,6 +92,7 @@ namespace VF.Feature {
         private class BuildSettings {
             public bool applyToUnmanagedLayers;
             public bool useWriteDefaults;
+            public bool ignoredBroken;
         }
         private BuildSettings _buildSettings;
         private BuildSettings GetBuildSettings() {
@@ -150,7 +158,8 @@ namespace VF.Feature {
 
             _buildSettings = new BuildSettings {
                 applyToUnmanagedLayers = applyToUnmanagedLayers,
-                useWriteDefaults = useWriteDefaults
+                useWriteDefaults = useWriteDefaults,
+                ignoredBroken = analysis.isBroken && mode == FixWriteDefaults.FixWriteDefaultsMode.Disabled
             };
             return _buildSettings;
         }

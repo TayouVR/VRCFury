@@ -12,32 +12,19 @@ void sps_parse_light(float range, half4 color, out int type, int channel) {
 
 	int legacyRange = round((range % 0.1) * 100);
 
-	// if (((alpha >> 6) & 3) == 2) {
-	// 	if (0.451 < range && range < 0.485) {
-	// 		channel = round((range - 0.452) / 0.002) + 1;
-	// 	} else {
-	// 		channel = 0;
-	// 	}
-	// 	type = ((alpha >> 4) & 3) + 1;
-	// 	if (type == 4) {
-	// 		type = 0;
-	// 	}
-	// } else {
-		if (channel == -1) { // legacy DPS channel 1
-			if (legacyRange == 3) type = 1;
-			if (legacyRange == 4) type = 2;
-			if (legacyRange == 6) type = 3;
-		} else { // Default Channel
-			if (legacyRange == 1) type = 1;
-			if (legacyRange == 2) type = 2;
-			if (legacyRange == 5) type = 3;
-		}
-	// }
+	if (channel == 1) { // legacy DPS channel 1
+		if (legacyRange == 3) type = 1;
+		if (legacyRange == 4) type = 2;
+		if (legacyRange == 6) type = 3;
+	} else { // Default Channel
+		if (legacyRange == 1) type = 1;
+		if (legacyRange == 2) type = 2;
+		if (legacyRange == 5) type = 3;
+    }
 
-	//			  0 = Default Channel
-	//			 -1 = DPS Channel 1
-	// 1 through 15 = not implemented plug standard channels - see commented-out code above
-	if (channel != 0 && channel != -1) {
+	// 0 = Default Channel
+	// 1 = DPS Channel 1
+	if (channel != 0 && channel != 1) {
 		// Light didn't match any valid Channels, return "invalid" Type
 		type = 0;
 		return;

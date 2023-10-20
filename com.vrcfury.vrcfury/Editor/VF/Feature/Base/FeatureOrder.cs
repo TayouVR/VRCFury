@@ -90,12 +90,12 @@ namespace VF.Feature.Base {
         FixEmptyMotions,
         AnimatorLayerControlFix,
         RemoveNonQuestMaterials,
+        RemoveBadControllerTransitions,
         FinalizeController,
 
         // Finalize Menus
-        SetMenuIcons1,
+        MoveSpsMenus,
         MoveMenuItems,
-        SetMenuIcons2,
         FinalizeMenu,
 
         // Finalize Parameters

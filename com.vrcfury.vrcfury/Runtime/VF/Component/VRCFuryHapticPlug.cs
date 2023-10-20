@@ -43,7 +43,7 @@ namespace VF.Component {
             public float startDistance = 1;
             public float endDistance;
             public bool enableSelf;
-            public float smoothingSeconds = 1f;
+            public float smoothingSeconds = 0.25f;
             [Obsolete] public float smoothing;
             public bool ResetMePlease2;
         }
@@ -101,24 +101,7 @@ namespace VF.Component {
         /// </summary>
         public enum Channel {
             Default = 0,
-            //Channel1 = 1,
-            //Channel2 = 2,
-            //Channel3 = 3,
-            //Channel4 = 4,
-            //Channel5 = 5,
-            //Channel6 = 6,
-            //Channel7 = 7,
-            //Channel8 = 8,
-            //Channel9 = 9,
-            //Channel10 = 10,
-            //Channel11 = 11,
-            //Channel12 = 12,
-            //Channel13 = 13,
-            //Channel14 = 14,
-            //Channel15 = 15,
-            //Channel16 = 16,
-            //Channel17 = 17,
-            LegacyDPSChannel1 = -1
+            LegacyDPSChannel1 = 1
         }
     }
 }

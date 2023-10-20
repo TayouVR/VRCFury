@@ -25,7 +25,7 @@ namespace VF.Feature {
         [VFAutowired] private readonly ActionClipService actionClipService;
         [VFAutowired] private readonly RestingStateBuilder restingState;
         [VFAutowired] private readonly HapticAnimContactsService _hapticAnimContactsService;
-        [VFAutowired] private readonly ParamSmoothingService paramSmoothing;
+        [VFAutowired] private readonly MathService math;
         [VFAutowired] private readonly FakeHeadService fakeHead;
         [VFAutowired] private readonly ObjectMoveService mover;
         [VFAutowired] private readonly ForceStateInAnimatorService _forceStateInAnimatorService;
@@ -85,7 +85,7 @@ namespace VF.Feature {
                     VFGameObject obj = socket.gameObject;
                     PhysboneUtils.RemoveFromPhysbones(socket.transform);
                     fakeHead.MarkEligible(socket.gameObject);
-                    if (VRCFuryHapticSocketEditor.IsChildOfHead(socket)) {
+                    if (HapticUtils.IsChildOfHead(socket.owner())) {
                         var head = VRCFArmatureUtils.FindBoneOnArmatureOrNull(avatarObject, HumanBodyBones.Head);
                         mover.Move(socket.gameObject, head);
                     }
@@ -185,7 +185,7 @@ namespace VF.Feature {
                         }
 
                         var holeOn = fx.NewBool(name, synced: true);
-                        var icon = socket.menuIcon != null ? socket.menuIcon.Get() : null;
+                        var icon = socket.menuIcon?.Get();
                         manager.GetMenu().NewMenuToggle($"{spsOptions.GetMenuPath()}/{name}", holeOn, icon: icon);
 
                         var layer = fx.NewLayer(name);
@@ -220,7 +220,7 @@ namespace VF.Feature {
                                 "AutoDistance",
                                 0.3f,
                                 new[] { HapticUtils.CONTACT_PEN_MAIN },
-                                allowSelf: false
+                                party: HapticUtils.ReceiverParty.Others
                             );
                             distReceiver.SetActive(false);
                             clipBuilder.Enable(autoOnClip, distReceiver);
@@ -282,12 +282,14 @@ namespace VF.Feature {
                         if (i == j) continue;
                         var (bName, bEnabled, bDist) = autoSockets[j];
                         var vs = layer.NewState($"{aName} vs {bName}").Move(triggerOff, 0, j+1);
-                        var tree = paramSmoothing.IsBWinningTree(aDist, bDist, vsParam);
+                        var tree = math.MakeDirect($"{aName} vs {bName}");
+                        tree.Add(bDist, math.MakeSetter(vsParam, 1));
+                        tree.Add(aDist, math.MakeSetter(vsParam, -1));
                         vs.WithAnimation(tree);
                         states[Tuple.Create(i,j)] = vs;
                     }
                 }
-                
+
                 for (var i = 0; i < autoSockets.Count; i++) {
                     var (name, enabled, dist) = autoSockets[i];
                     var triggerOn = states[Tuple.Create(i, -1)];
@@ -301,7 +303,7 @@ namespace VF.Feature {
                         var current = states[Tuple.Create(i, j)];
                         var otherActivate = states[Tuple.Create(j, -1)];
 
-                        current.TransitionsTo(otherActivate).When(vsParam.IsGreaterThan(0.51f));
+                        current.TransitionsTo(otherActivate).When(vsParam.IsGreaterThan(0));
                         
                         var nextI = j + 1;
                         if (nextI == i) nextI++;
