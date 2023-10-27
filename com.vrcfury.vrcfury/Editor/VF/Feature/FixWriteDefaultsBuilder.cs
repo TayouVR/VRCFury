@@ -45,9 +45,19 @@ namespace VF.Feature {
 
         [FeatureBuilderAction(FeatureOrder.RecordAllDefaults)]
         public void RecordAllDefaults() {
+            var propsInNonFx = new HashSet<EditorCurveBinding>();
+            foreach (var c in manager.GetAllUsedControllers()) {
+                if (c.GetType() == VRCAvatarDescriptor.AnimLayerType.FX) continue;
+                foreach (var clip in c.GetClips()) {
+                    foreach (var binding in clip.GetAllBindings()) {
+                        propsInNonFx.Add(binding.Normalize());
+                    }
+                }
+            }
+            
             // We shouldn't need to record defaults if useWriteDefaults is true, BUT due to a vrchat bug,
             // the defaults state for properties are broken in mirrors, so we're forced to record them all in the base layer.
-            //var settings = GetBuildSettings();
+            var settings = GetBuildSettings();
             //if (settings.useWriteDefaults) return;
 
             foreach (var layer in GetMaintainedLayers(GetFx())) {
@@ -55,9 +65,21 @@ namespace VF.Feature {
                     if (!state.writeDefaultValues) continue;
                     foreach (var clip in new AnimatorIterator.Clips().From(state)) {
                         foreach (var binding in clip.GetFloatBindings()) {
+                            if (
+                                settings.useWriteDefaults
+                                && binding.type == typeof(SkinnedMeshRenderer)
+                                && binding.path == "Body"
+                                && binding.propertyName.StartsWith("blendShape.")
+                                && MmdUtils.IsMaybeMmdBlendshape(binding.propertyName.Substring(11))
+                            ) {
+                                continue;
+                            }
+
+                            if (propsInNonFx.Contains(binding.Normalize())) continue;
                             RecordDefaultNow(binding, true);
                         }
                         foreach (var binding in clip.GetObjectBindings()) {
+                            if (propsInNonFx.Contains(binding.Normalize())) continue;
                             RecordDefaultNow(binding, false);
                         }
                     }
