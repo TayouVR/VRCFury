@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEditor;
@@ -51,6 +51,10 @@ namespace VF.Service {
                 } else {
                     suffixes.Add("");
                 }
+            } else if (party == HapticUtils.ReceiverParty.Both) {
+                suffixes.Add("");
+            } else {
+                throw new Exception("Unknown ReceiverParty");
             }
 
             tags = tags.SelectMany(tag => {
