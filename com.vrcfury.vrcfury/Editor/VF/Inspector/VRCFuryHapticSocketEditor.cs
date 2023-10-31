@@ -269,17 +269,12 @@ namespace VF.Inspector {
             return lightRange;
         }
 
-        public static Tuple<string,VFGameObject> Bake(VRCFuryHapticSocket socket, List<string> usedNames = null, bool onlySenders = false) {
+        public static VFGameObject Bake(VRCFuryHapticSocket socket) {
             var transform = socket.transform;
             HapticUtils.RemoveTPSSenders(transform);
             HapticUtils.AssertValidScale(transform, "socket");
 
             var (lightType, localPosition, localRotation) = GetInfoFromLightsOrComponent(socket);
-
-            var name = GetName(socket);
-            if (usedNames != null) name = HapticUtils.GetNextName(usedNames, name);
-
-            Debug.Log("Baking haptic component in " + transform + " as " + name);
 
             var bakeRoot = GameObjects.Create("BakedHapticSocket", transform);
             bakeRoot.localPosition = localPosition;
@@ -341,7 +336,7 @@ namespace VF.Inspector {
                 }
             }
 
-            return Tuple.Create(name, bakeRoot);
+            return bakeRoot;
         }
 
         public static Tuple<float, float> GetHandTouchZoneSize(VRCFuryHapticSocket socket) {
@@ -457,7 +452,7 @@ namespace VF.Inspector {
             return ShouldProbablyHaveTouchZone(socket);
         }
 
-        private static string GetName(VRCFuryHapticSocket socket) {
+        public static string GetName(VRCFuryHapticSocket socket) {
             var name = socket.name;
             if (!string.IsNullOrWhiteSpace(name)) return name;
             return HapticUtils.GetName(socket.owner());
