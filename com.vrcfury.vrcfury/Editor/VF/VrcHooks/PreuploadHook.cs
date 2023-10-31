@@ -9,6 +9,7 @@ using VRC.SDKBase.Editor.BuildPipeline;
 using Object = UnityEngine.Object;
 
 namespace VF.VrcHooks {
+#if !USE_NDMF
     public class PreuploadHook : IVRCSDKPreprocessAvatarCallback {
         // This has to be before -1024 when VRCSDK deletes our components
         public int callbackOrder => -10000;
@@ -61,4 +62,5 @@ namespace VF.VrcHooks {
             return true;
         }
     }
+#endif
 }
