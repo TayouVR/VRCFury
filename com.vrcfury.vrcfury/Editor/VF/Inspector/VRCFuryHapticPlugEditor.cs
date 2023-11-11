@@ -6,6 +6,7 @@ using JetBrains.Annotations;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
+using UnityEngine.Animations;
 using UnityEngine.UIElements;
 using VF.Builder;
 using VF.Builder.Exceptions;
@@ -21,6 +22,8 @@ namespace VF.Inspector {
             var container = new VisualElement();
             var configureTps = serializedObject.FindProperty("configureTps");
             var enableSps = serializedObject.FindProperty("enableSps");
+            
+            container.Add(ConstraintWarning(target.gameObject));
             
             var boneWarning = VRCFuryEditorUtils.Warn(
                 "WARNING: This renderer is rigged with bones, but you didn't put the Haptic Plug inside a bone! When SPS is used" +
@@ -182,15 +185,7 @@ namespace VF.Inspector {
                     "1 Unit is the length of the plug"
                 ));
                 
-                da.Add(VRCFuryEditorUtils.List(serializedObject.FindProperty("depthActions"), (i, prop) => {
-                    var c = new VisualElement();
-                    c.Add(VRCFuryEditorUtils.BetterProp(prop.FindPropertyRelative("state")));
-                    c.Add(VRCFuryEditorUtils.BetterProp(prop.FindPropertyRelative("startDistance"), "Distance when animation begins"));
-                    c.Add(VRCFuryEditorUtils.BetterProp(prop.FindPropertyRelative("endDistance"), "Distance when animation is maxed"));
-                    c.Add(VRCFuryEditorUtils.BetterProp(prop.FindPropertyRelative("enableSelf"), "Allow avatar to trigger its own animation?"));
-                    c.Add(VRCFuryEditorUtils.BetterProp(prop.FindPropertyRelative("smoothingSeconds"), "Smoothing Seconds", tooltip: "It will take approximately this many seconds to smoothly blend to the target depth. Beware that this smoothing is based on framerate, so higher FPS will result in faster smoothing."));
-                    return c;
-                }));
+                da.Add(VRCFuryEditorUtils.List(serializedObject.FindProperty("depthActions")));
 
                 return da;
             }, enableDepthAnimationsProp));
@@ -210,6 +205,38 @@ namespace VF.Inspector {
             adv.Add(VRCFuryEditorUtils.BetterCheckbox(serializedObject.FindProperty("spsKeepImports"), "(Developer) Do not flatten SPS imports"));
 
             return container;
+        }
+        
+        [CustomPropertyDrawer(typeof(VRCFuryHapticPlug.PlugDepthAction))]
+        public class PlugDepthActionDrawer : PropertyDrawer {
+            public override VisualElement CreatePropertyGUI(SerializedProperty prop) {
+                var c = new VisualElement();
+                c.Add(VRCFuryEditorUtils.BetterProp(prop.FindPropertyRelative("state")));
+                c.Add(VRCFuryEditorUtils.BetterProp(prop.FindPropertyRelative("startDistance"), "Distance when animation begins"));
+                c.Add(VRCFuryEditorUtils.BetterProp(prop.FindPropertyRelative("endDistance"), "Distance when animation is maxed"));
+                c.Add(VRCFuryEditorUtils.BetterProp(prop.FindPropertyRelative("enableSelf"), "Allow avatar to trigger its own animation?"));
+                c.Add(VRCFuryEditorUtils.BetterProp(prop.FindPropertyRelative("smoothingSeconds"), "Smoothing Seconds", tooltip: "It will take approximately this many seconds to smoothly blend to the target depth. Beware that this smoothing is based on framerate, so higher FPS will result in faster smoothing."));
+                return c;
+            }
+        }
+
+        public static VisualElement ConstraintWarning(VFGameObject obj, bool isSocket = false) {
+            var output = new VisualElement();
+            var warning = VRCFuryEditorUtils.Warn(
+                "This SPS component is used within a Constraint! " +
+                "AVOID using SPS within constraints if at all possible. " +
+                (isSocket
+                    ? "Sharing one socket in multiple locations will make your avatar LESS performant, not more! "
+                    : "") +
+                "\n\n" +
+                "Check out https://vrcfury.com/sps/constraints for details");
+            warning.style.display = DisplayStyle.None;
+            output.Add(warning);
+            VRCFuryEditorUtils.RefreshOnInterval(output, () => {
+                var found = obj.GetComponentsInSelfAndParents<IConstraint>().Length > 0;
+                warning.style.display = found ? DisplayStyle.Flex : DisplayStyle.None;
+            });
+            return output;
         }
         
         public class GizmoCache {
@@ -371,7 +398,7 @@ namespace VF.Inspector {
                                 if (EditorUserBuildSettings.activeBuildTarget == BuildTarget.Android) return mat;
 
                                 if (plug.enableSps) {
-                                    var copy = mutableManager.MakeMutable(mat, skin.owner());
+                                    var copy = MutableManager.MakeMutable(mat);
                                     if (finishedCopies.Contains(copy)) return copy;
                                     finishedCopies.Add(copy);
                                     SpsConfigurer.ConfigureSpsMaterial(skin, copy, worldLength,
@@ -380,7 +407,7 @@ namespace VF.Inspector {
                                     return copy;
                                 }
                                 if (plug.configureTps && TpsConfigurer.IsTps(mat)) {
-                                    var copy = mutableManager.MakeMutable(mat, skin.owner());
+                                    var copy = MutableManager.MakeMutable(mat);
                                     if (finishedCopies.Contains(copy)) return copy;
                                     finishedCopies.Add(copy);
                                     TpsConfigurer.ConfigureTpsMaterial(skin, copy, worldLength,

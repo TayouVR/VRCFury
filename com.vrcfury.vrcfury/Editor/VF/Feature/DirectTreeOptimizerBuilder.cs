@@ -78,13 +78,18 @@ namespace VF.Feature {
                     .Any(clip => !ClipBuilderService.IsStaticMotion(clip));
 
                 var usedBindings = bindingsByLayer[layer];
+                if (usedBindings.Any(b => b.propertyName.ToLower().Contains("localeulerangles"))) {
+                    AddDebug($"Not optimizing (animates transform rotations, which work differently within blend trees)");
+                    continue;
+                }
+                
                 var otherLayersAnimateTheSameThing = bindingsByLayer
                     .Where(pair => pair.Key != layer && pair.Key.Exists() && pair.Key.GetLayerId() >= layer.GetLayerId() && pair.Value.Any(b => usedBindings.Contains(b)))
                     .Select(pair => pair.Key)
                     .ToArray();
                 if (otherLayersAnimateTheSameThing.Length > 0) {
                     var names = string.Join(", ", otherLayersAnimateTheSameThing.Select(l => l.name));
-                    AddDebug($"Not optimizing (shares animations with other layer: {names}");
+                    AddDebug($"Not optimizing (shares animations with other layer: {names})");
                     continue;
                 }
 
@@ -110,10 +115,8 @@ namespace VF.Feature {
 
                         offClip = dualState.Item1;
                         offClip.name = state.motion.name + " (OFF)";
-                        AssetDatabase.AddObjectToAsset(offClip, state.motion);
                         onClip = dualState.Item2;
                         onClip.name = state.motion.name + " (ON)";
-                        AssetDatabase.AddObjectToAsset(onClip, state.motion);
                         param = state.timeParameter;
                     } else {
                         offClip = null;
@@ -190,7 +193,6 @@ namespace VF.Feature {
                             else if (Mathf.Approximately(s.speed, 0)) single = dualState.Item1;
                             else return null;
                             single.name = $"{clip.name} (speed={s.speed} end state)";
-                            AssetDatabase.AddObjectToAsset(single, clip);
                             return single;
                         }
 

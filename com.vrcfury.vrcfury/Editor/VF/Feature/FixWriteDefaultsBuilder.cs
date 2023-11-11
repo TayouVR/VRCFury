@@ -55,26 +55,16 @@ namespace VF.Feature {
                 }
             }
             
-            // We shouldn't need to record defaults if useWriteDefaults is true, BUT due to a vrchat bug,
-            // the defaults state for properties are broken in mirrors, so we're forced to record them all in the base layer.
+            // Note to self: Never record defaults when WD is on, because a unity bug with WD on can cause the defaults to override lower layers
+            // even though the lower layers should be higher priority.
             var settings = GetBuildSettings();
-            //if (settings.useWriteDefaults) return;
+            if (settings.useWriteDefaults) return;
 
             foreach (var layer in GetMaintainedLayers(GetFx())) {
                 foreach (var state in new AnimatorIterator.States().From(layer)) {
                     if (!state.writeDefaultValues) continue;
                     foreach (var clip in new AnimatorIterator.Clips().From(state)) {
                         foreach (var binding in clip.GetFloatBindings()) {
-                            if (
-                                settings.useWriteDefaults
-                                && binding.type == typeof(SkinnedMeshRenderer)
-                                && binding.path == "Body"
-                                && binding.propertyName.StartsWith("blendShape.")
-                                && MmdUtils.IsMaybeMmdBlendshape(binding.propertyName.Substring(11))
-                            ) {
-                                continue;
-                            }
-
                             if (propsInNonFx.Contains(binding.Normalize())) continue;
                             RecordDefaultNow(binding, true);
                         }
@@ -105,7 +95,10 @@ namespace VF.Feature {
                         .Any(tree => tree.blendType == BlendTreeType.Direct);
 
                     foreach (var state in new AnimatorIterator.States().From(layer)) {
-                        state.writeDefaultValues = useWriteDefaultsForLayer;
+                        // Avoid calling this if not needed, since it internally invalidates the controller cache every time
+                        if (state.writeDefaultValues != useWriteDefaultsForLayer) {
+                            state.writeDefaultValues = useWriteDefaultsForLayer;
+                        }
                     }
                 }
             }
@@ -127,7 +120,10 @@ namespace VF.Feature {
                 .Select(l => l.stateMachine)
                 .ToImmutableHashSet();
 
-            var analysis = DetectExistingWriteDefaults(manager.GetAllUsedControllersRaw(), allManagedStateMachines);
+            var analysis = DetectExistingWriteDefaults(
+                manager.GetAllUsedControllers().Select(c => (c.GetType(), c.GetRaw())),
+                allManagedStateMachines
+            );
 
             var fixSetting = allFeaturesInRun.OfType<FixWriteDefaults>().FirstOrDefault();
             var mode = FixWriteDefaults.FixWriteDefaultsMode.Disabled;
@@ -139,6 +135,7 @@ namespace VF.Feature {
                     " This may cause weird issues to happen with your animations," +
                     " such as toggles or animations sticking on or off forever.\n\n" +
                     "VRCFury can try to fix this for you automatically. Should it try?\n\n" +
+                    "You can easily undo this change by removing the 'Fix Write Defaults' component that will be added to your avatar root.\n\n" +
                     $"(Debug info: {analysis.debugInfo}, VRCF will try to convert to {(analysis.shouldBeOnIfWeAreInControl ? "ON" : "OFF")})",
                     "Auto-Fix",
                     "Skip",
@@ -210,7 +207,7 @@ namespace VF.Feature {
         
         // Returns: Broken, Should Use Write Defaults, Reason, Bad States
         public static DetectionResults DetectExistingWriteDefaults(
-            IEnumerable<Tuple<VRCAvatarDescriptor.AnimLayerType, VFController>> avatarControllers,
+            IEnumerable<(VRCAvatarDescriptor.AnimLayerType, VFController)> avatarControllers,
             ISet<AnimatorStateMachine> stateMachinesToIgnore = null
         ) {
             var controllerInfos = avatarControllers.Select(tuple => {
