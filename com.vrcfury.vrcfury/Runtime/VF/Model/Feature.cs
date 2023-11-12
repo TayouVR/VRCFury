@@ -249,6 +249,7 @@ namespace VF.Model.Feature {
         [NonSerialized] public bool usePrefixOnParam = true;
         [NonSerialized] public string paramOverride = null;
         [NonSerialized] public bool useInt = false;
+        public bool hasExitTime = false;
         public bool enableIcon;
         public GuidTexture2d icon;
         public bool enableDriveGlobalParam;
@@ -695,9 +696,9 @@ namespace VF.Model.Feature {
     
     [Serializable]
     public class BlendshapeOptimizer : NewFeatureModel {
-        public bool keepMmdShapes;
+        [Obsolete] public bool keepMmdShapes;
     }
-    
+
     [Serializable]
     public class Slot4Fix : NewFeatureModel {
     }
@@ -721,6 +722,11 @@ namespace VF.Model.Feature {
         public GuidTexture2d menuIcon;
         public string menuPath;
         public bool enableLightlessToggle2 = false;
+    }
+
+    [Serializable]
+    public class MmdCompatibility : NewFeatureModel {
+        
     }
 
 }
