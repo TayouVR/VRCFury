@@ -8,17 +8,6 @@ using VRC.SDK3.Dynamics.PhysBone.Components;
 
 namespace VF.Builder {
     public class PhysboneUtils {
-        public static IList<Transform> GetAffectedTransforms(VRCPhysBoneBase physBone) {
-            bool IsIgnored(Transform transform) =>
-                physBone.ignoreTransforms.Any(ignored => ignored != null && transform.IsChildOf(ignored));
-
-            return physBone.GetRootTransform().asVf()
-                .GetSelfAndAllChildren()
-                .Select(o => o.transform)
-                .Where(t => !IsIgnored(t))
-                .ToArray();
-        }
-        
         public static void RemoveFromPhysbones(VFGameObject obj, bool force = false) {
             if (!force && ContainsBonesUsedExternally(obj)) {
                 return;

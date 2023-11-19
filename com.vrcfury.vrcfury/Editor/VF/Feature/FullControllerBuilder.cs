@@ -56,7 +56,7 @@ namespace VF.Feature {
                     missingAssets.Add(c.controller);
                     continue;
                 }
-                var copy = VFController.CopyAndLoadController(source);
+                var copy = VFController.CopyAndLoadController(source, c.type);
                 if (copy) {
                     toMerge.Add((c.type, copy));
                 }
@@ -234,10 +234,7 @@ namespace VF.Feature {
             // Check for gogoloco
             foreach (var p in from.parameters) {
                 if (p.name == "Go/Locomotion") {
-                    var avatar = avatarObject.GetComponent<VRCAvatarDescriptor>();
-                    if (avatar) {
-                        avatar.autoLocomotion = false;
-                    }
+                    manager.Avatar.autoLocomotion = false;
                 }
             }
 
@@ -250,15 +247,7 @@ namespace VF.Feature {
                     rootBindingsApplyToAvatar: model.rootBindingsApplyToAvatar
                 ),
                 ClipRewriter.AdjustRootScale(avatarObject),
-                ClipRewriter.AnimatorBindingsAlwaysTargetRoot(),
-                AnimationRewriter.RewriteBinding(binding => {
-                    if (type == VRCAvatarDescriptor.AnimLayerType.FX) {
-                        if (binding.IsMuscle() || binding.IsProxyBinding()) {
-                            return null;
-                        }
-                    }
-                    return binding;
-                }, false)
+                ClipRewriter.AnimatorBindingsAlwaysTargetRoot()
             ));
             
             // Rewrite params
