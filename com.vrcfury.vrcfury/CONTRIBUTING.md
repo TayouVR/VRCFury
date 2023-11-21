@@ -70,6 +70,7 @@ For more information, please refer to <https://unlicense.org>
 * Morghus
   * Created numerous setup prefabs
   * Fix DirectTreeOptimizer for clips with partial keyframes
+  * Added parameter smoothing to Full Controller
 * nullstalgia
   * Added option for Toggles to use momentary push buttons
   * Prevented SPS toggle from disabling SPS autorig physbone
@@ -81,6 +82,7 @@ For more information, please refer to <https://unlicense.org>
   * Improved log outputs from exception handling
   * Added Channel Support for Haptic Socket and Plugs
   * Added EditorOnly handling and fixed Builder Crash with ForceObjectState Delete
+  * Added version number to vrcfury components
 * TheLastRar
   * Contributed attempts to fix light slot 4 breakage for DPS tip lights (unused)
   * Added scaling of legacy DPS tip light intensity
