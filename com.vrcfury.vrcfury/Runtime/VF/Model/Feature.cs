@@ -248,6 +248,7 @@ namespace VF.Model.Feature {
         public State state = new State();
         public bool saved;
         public bool slider;
+        public bool sliderInactiveAtZero;
         public bool securityEnabled;
         public bool defaultOn;
         public bool includeInRest;
@@ -276,6 +277,7 @@ namespace VF.Model.Feature {
         public float localTransitionTimeIn = 0;
         public float localTransitionTimeOut = 0;
         public bool simpleOutTransition = true;
+        [Range(0,1)]
         public float defaultSliderValue = 1;
         public bool useGlobalParam;
         public string globalParam;
@@ -298,12 +300,18 @@ namespace VF.Model.Feature {
                     }
                 }
             }
+            if (fromVersion < 2) {
+                if (!defaultOn) {
+                    defaultSliderValue = 0;
+                }
+                sliderInactiveAtZero = true;
+            }
             return false;
 #pragma warning restore 0612
         }
 
         public override int GetLatestVersion() {
-            return 1;
+            return 2;
         }
     }
 

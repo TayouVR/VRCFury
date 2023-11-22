@@ -35,6 +35,7 @@ namespace VF.Component {
         public List<DepthAction> depthActions = new List<DepthAction>();
         public bool enableActiveAnimation = false;
         public State activeActions;
+        public bool useHipAvoidance = true;
 
         [Serializable]
         public class DepthAction {
