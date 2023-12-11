@@ -296,7 +296,7 @@ namespace VF.Inspector {
         /// <param name="spsChannel">Channel to use (Currently only supports DPS Channels 0 and 1)</param>
         /// <param name="addLight">rings are 0.42 or 0.44 depending on DPS channel, holes are 0.41 and 0.43</param>
         /// <returns></returns>
-        public static float GetLightRange(bool isFront, VRCFuryHapticPlug.Channel spsChannel, VRCFuryHapticSocket.AddLight addLight = VRCFuryHapticSocket.AddLight.Hole) {
+        public static float GetLightRange(bool isFront, VRCFuryHapticPlug.Channel spsChannel, VRCFuryHapticSocket.AddLight lightType = VRCFuryHapticSocket.AddLight.Hole) {
             if (spsChannel != VRCFuryHapticPlug.Channel.Default && spsChannel != VRCFuryHapticPlug.Channel.LegacyDPSChannel1)
                 throw new NotImplementedException(); // remove this if when implementing other channels
             float lightRange;
@@ -305,9 +305,9 @@ namespace VF.Inspector {
                 lightRange = spsChannel == VRCFuryHapticPlug.Channel.Default ? 0.4502f : 0.4602f;
             } else {
                 if (spsChannel == VRCFuryHapticPlug.Channel.Default) {
-                    lightRange = addLight == VRCFuryHapticSocket.AddLight.Ring ? 0.4202f : 0.4102f;
+                    lightRange = lightType == VRCFuryHapticSocket.AddLight.Ring || lightType == VRCFuryHapticSocket.AddLight.RingOneWay ? 0.4202f : 0.4102f;
                 } else {
-                    lightRange = addLight == VRCFuryHapticSocket.AddLight.Ring ? 0.4402f : 0.4302f;
+                    lightRange = lightType == VRCFuryHapticSocket.AddLight.Ring || lightType == VRCFuryHapticSocket.AddLight.RingOneWay ? 0.4402f : 0.4302f;
                 }
             }
                     
