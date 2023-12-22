@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
@@ -364,7 +364,33 @@ namespace VF.Feature {
             public readonly Stack<(VFGameObject, VFGameObject)> reparent
                 = new Stack<(VFGameObject, VFGameObject)>();
         }
+        
+        private void GetDragTarget() {
+            var bonePathOnAvatarDragTarget = model.bonePathOnAvatarDragTarget;
+            if (bonePathOnAvatarDragTarget != null) {
+                var pathTarget = (VFGameObject)bonePathOnAvatarDragTarget;
+                // Checking if the drag target is a bone on the avatar or attached to one
+                try {
+                    var humanoidBone = VRCFArmatureUtils.FindClosestBoneOrException(avatarObject, pathTarget);
+                    // Found a bone attached to the prop, check if it's the drag target
+                    var boneObject = VRCFArmatureUtils.FindBoneOnArmatureOrException(avatarObject, humanoidBone);
 
+                    if (boneObject.GetPath(avatarObject) == pathTarget.GetPath(avatarObject)) {
+                        model.boneOnAvatar = humanoidBone;
+                        model.bonePathOnAvatar = null;
+                        model.bonePathOnAvatarDragTarget = null;
+                    } else {
+                        model.boneOnAvatar = humanoidBone;
+                        model.bonePathOnAvatar = pathTarget.GetPath(boneObject);
+                        model.bonePathOnAvatarDragTarget = null;
+                    }
+                } catch {
+                    // Object wasn't attached to a humanoid bone! So just set the path absolutely.
+                    model.bonePathOnAvatar = pathTarget.GetPath(avatarObject);
+                    model.bonePathOnAvatarDragTarget = null;
+                }
+            }
+        }
         private Links GetLinks() {
             VFGameObject propBone = model.propBone;
             if (propBone == null) return null;
@@ -388,7 +414,9 @@ namespace VF.Feature {
                     if (avatarBone) break;
                 }
                 if (!avatarBone) {
-                    throw;
+                    throw new VRCFBuilderException(
+                        "Failed to find " + model.boneOnAvatar + " bone on avatar. " +
+                        "Did you rename one of your avatar's bones on accident?");
                 }
             }
             
@@ -500,6 +528,12 @@ namespace VF.Feature {
             container.Add(rootBoneLabelWhenReparent);
             container.Add(VRCFuryEditorUtils.Prop(prop.FindPropertyRelative("boneOnAvatar")));
 
+            container.Add(VRCFuryEditorUtils.WrappedLabel(
+                "Or drag in the object/bone directly here:"));
+            container.Add(VRCFuryEditorUtils.Prop(prop.FindPropertyRelative("bonePathOnAvatarDragTarget")));
+            container.Add(VRCFuryEditorUtils.WrappedLabel("Extra path to bone:"));
+            container.Add(VRCFuryEditorUtils.WrappedLabel("Path from specified bone (or avatar root) to non-humanoid child bone."));
+            container.Add(VRCFuryEditorUtils.Prop(prop.FindPropertyRelative("bonePathOnAvatar")));
             container.Add(new VisualElement { style = { paddingTop = 10 } });
             
             var adv = new Foldout {
@@ -523,11 +557,7 @@ namespace VF.Feature {
                                                     "based on the difference between the name of the given root bones."));
             adv.Add(VRCFuryEditorUtils.Prop(prop.FindPropertyRelative("removeBoneSuffix")));
             
-            adv.Add(new VisualElement { style = { paddingTop = 10 } });
-            adv.Add(VRCFuryEditorUtils.WrappedLabel("String path to bone on avatar:"));
-            adv.Add(VRCFuryEditorUtils.WrappedLabel("If provided, humanoid bone dropdown will be ignored."));
-            adv.Add(VRCFuryEditorUtils.Prop(prop.FindPropertyRelative("bonePathOnAvatar")));
-
+            
             adv.Add(new VisualElement { style = { paddingTop = 10 } });
             adv.Add(VRCFuryEditorUtils.WrappedLabel("Keep bone offsets:"));
             adv.Add(VRCFuryEditorUtils.WrappedLabel(
@@ -561,6 +591,8 @@ namespace VF.Feature {
                     return "Avatar descriptor is missing";
                 }
 
+                GetDragTarget();
+                
                 var linkMode = GetLinkMode();
                 rootBoneLabelWhenReparent.SetVisible(linkMode == ArmatureLink.ArmatureLinkMode.ReparentRoot);
                 rootBoneLabelWhenSkin.SetVisible(linkMode != ArmatureLink.ArmatureLinkMode.ReparentRoot);
@@ -570,6 +602,7 @@ namespace VF.Feature {
                     return "No valid link target found";
                 }
                 var keepBoneOffsets = GetKeepBoneOffsets(linkMode);
+                
                 var text = new List<string>();
                 var (avatarMainScale, propMainScale, scalingFactor) = GetScalingFactor(links, linkMode);
                 text.Add($"Merging to bone: {links.avatarMain.GetPath(avatarObject)}");
