@@ -408,10 +408,10 @@ namespace VF.Feature {
             if (!string.IsNullOrWhiteSpace(model.bonePathOnAvatar)) {
                 // Check for path within humanoid bone
                 // if nothing is there, check from avatar root instead
-                if (avatarBone != null && avatarBone.transform.Find(model.bonePathOnAvatar).gameObject) {
-                    avatarBone = avatarBone.transform.Find(model.bonePathOnAvatar).gameObject;
+                if (avatarBone?.transform.Find(model.bonePathOnAvatar)?.gameObject) {
+                    avatarBone = avatarBone?.transform.Find(model.bonePathOnAvatar)?.gameObject;
                 } else {
-                    avatarBone = avatarObject.transform.Find(model.bonePathOnAvatar).gameObject;
+                    avatarBone = avatarObject.transform.Find(model.bonePathOnAvatar)?.gameObject;
                 }
 
                 if (avatarBone == null) {
