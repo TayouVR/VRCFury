@@ -32,6 +32,7 @@ namespace VF.Component {
         public Vector3 rotation;
         public VRCFuryHapticPlug.Channel channel = VRCFuryHapticPlug.Channel.Default;
         public bool addChannelToggle = false;
+        [NonSerialized] public bool sendersOnly = false;
 
         public bool enableDepthAnimations = false;
         public List<DepthAction> depthActions = new List<DepthAction>();

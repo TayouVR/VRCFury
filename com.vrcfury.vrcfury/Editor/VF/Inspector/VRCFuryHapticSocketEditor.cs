@@ -316,14 +316,17 @@ namespace VF.Inspector {
             return lightRange;
         }
 
+        [CanBeNull]
         public static VFGameObject Bake(VRCFuryHapticSocket socket, HapticContactsService hapticContactsService) {
             var transform = socket.transform;
             HapticUtils.RemoveTPSSenders(transform);
-            HapticUtils.AssertValidScale(transform, "socket");
+            if (!HapticUtils.AssertValidScale(transform, "socket", shouldThrow: !socket.sendersOnly)) {
+                return null;
+            }
 
             var (lightType, localPosition, localRotation) = GetInfoFromLightsOrComponent(socket);
 
-            var bakeRoot = GameObjects.Create("BakedHapticSocket", transform);
+            var bakeRoot = GameObjects.Create("BakedSpsSocket", transform);
             bakeRoot.localPosition = localPosition;
             bakeRoot.localRotation = localRotation;
 
@@ -334,7 +337,7 @@ namespace VF.Inspector {
                 var rootTags = new List<string>();
                 rootTags.Add(HapticUtils.TagTpsOrfRoot);
                 rootTags.Add(HapticUtils.TagSpsSocketRoot);
-                if (lightType != VRCFuryHapticSocket.AddLight.None) {
+                if (lightType != VRCFuryHapticSocket.AddLight.None && !socket.sendersOnly) {
                     switch (lightType) {
                         case VRCFuryHapticSocket.AddLight.Ring:
                             rootTags.Add(HapticUtils.TagSpsSocketIsRing);
@@ -353,7 +356,7 @@ namespace VF.Inspector {
                     new[] { HapticUtils.TagTpsOrfFront, HapticUtils.TagSpsSocketFront }, useHipAvoidance: socket.useHipAvoidance);
             }
 
-            if (lightType != VRCFuryHapticSocket.AddLight.None) {
+            if (lightType != VRCFuryHapticSocket.AddLight.None && !socket.sendersOnly) {
                 var lights = GameObjects.Create("Lights", bakeRoot);
 
                 ForEachPossibleLight(transform, false, light => {
@@ -380,7 +383,7 @@ namespace VF.Inspector {
                 }
             }
             
-            if (EditorApplication.isPlaying) {
+            if (EditorApplication.isPlaying && !socket.sendersOnly) {
                 var gizmo = socket.owner().AddComponent<VRCFurySocketGizmo>();
                 gizmo.pos = localPosition;
                 gizmo.rot = localRotation;
