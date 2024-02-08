@@ -26,8 +26,8 @@ namespace VF.Builder {
         public static VFGameObject FindBoneOnArmatureOrException(VFGameObject avatarObject, HumanBodyBones findBone) {
             var bonePath = FindBonePathOrException(avatarObject, findBone);
 
-            var found = avatarObject.transform.Find(bonePath);
-            if (!found) {
+            var found = avatarObject.Find(bonePath);
+            if (found == null) {
                 throw new VRCFBuilderException(
                     "Failed to find " + findBone + " object on avatar, but bone was listed in humanoid descriptor. " +
                     "Did you rename one of your avatar's bones on accident? The path to this bone should be:\n" +
@@ -40,42 +40,27 @@ namespace VF.Builder {
         public static void WarmupCache(VFGameObject avatarObject) {
             Load(avatarObject);
         }
-
-        public static HumanBodyBones FindClosestBoneOrException(VFGameObject avatarObject, VFGameObject findObject) {
-           var lookup = Load(avatarObject);
-
-           foreach (var potentialBone in findObject.GetSelfAndAllParents()) {
-               foreach (var kvp in lookup) {
-                   var bone = kvp.Key;
-                   var path = kvp.Value;
-                   var found = avatarObject.transform.Find(path);
-                   if (found == potentialBone) {
-                          return bone;
-                   }
-               }
-           }
-           
-           throw new VRCFBuilderException(
-               "Did not find " + findObject.name + " object in the humanoid descriptor in the original path.");
-        }
- 
-        private static string FindBonePathOrException(Transform avatarObject, HumanBodyBones findBone) {
+        
+        private static string FindBonePathOrException(VFGameObject avatarObject, HumanBodyBones findBone) {
             var lookup = Load(avatarObject);
 
             if (!lookup.TryGetValue(findBone, out var path)) {
+                if (!lookup.ContainsKey(HumanBodyBones.Hips)) {
+                    throw new Exception($"{findBone} bone could not be found because avatar's rig is not set to humanoid");
+                }
                 throw new VRCFBuilderException(
-                    "Bone isn't present in rig. Are you sure the rig for the avatar is humanoid and contains this bone?");
+                    $"{findBone} bone isn't set in this avatar's rig");
             }
 
             return path;
         }
 
-        private static Dictionary<HumanBodyBones, string> Load(Transform avatarObject) {
+        private static Dictionary<HumanBodyBones, string> Load(VFGameObject avatarObject) {
             if (cache.TryGetValue(avatarObject, out var cached)) {
                 return cached;
             }
 
-            var animator = avatarObject.owner().GetComponent<Animator>();
+            var animator = avatarObject.GetComponent<Animator>();
             if (!animator) {
                 return new Dictionary<HumanBodyBones, string>();
             }

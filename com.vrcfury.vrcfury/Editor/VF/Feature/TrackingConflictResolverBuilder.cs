@@ -22,8 +22,8 @@ namespace VF.Feature {
         [VFAutowired] private readonly MathService mathService;
         [VFAutowired] private readonly FrameTimeService frameTimeService;
 
-        private readonly VFMultimap<TrackingControlType, VFAFloat> inhibitors =
-            new VFMultimap<TrackingControlType, VFAFloat>();
+        private readonly VFMultimapList<TrackingControlType, VFAFloat> inhibitors =
+            new VFMultimapList<TrackingControlType, VFAFloat>();
 
         public VFAFloat AddInhibitor(string owner, TrackingControlType type) {
             var param = manager.GetFx().NewFloat($"TC_{owner}_{type.fieldName}");
@@ -105,12 +105,11 @@ namespace VF.Feature {
             var whenAnimatedDict = new Dictionary<TrackingControlType, VFCondition>();
             {
                 foreach (var type in typesUsed) {
-                    var merged = fx.NewFloat("TC_merged_" + type.fieldName);
-                    var setter = mathService.MakeSetter(merged, 1);
-                    foreach (var input in inhibitors.Get(type)) {
-                        directTreeService.Add(input, setter);
-                    }
-                    whenAnimatedDict[type] = merged.IsGreaterThan(0.5f);
+                    var merged = mathService.Add(
+                        $"TC_merged_{type.fieldName}",
+                        inhibitors.Get(type).Select(input => ((MathService.VFAFloatOrConst)input,1f)).ToArray()
+                    );
+                    whenAnimatedDict[type] = merged.AsFloat().IsGreaterThan(0.5f);
                 }
             }
 

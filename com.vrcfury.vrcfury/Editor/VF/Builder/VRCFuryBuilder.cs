@@ -5,7 +5,6 @@ using System.Linq;
 using System.Reflection;
 using UnityEditor;
 using UnityEngine;
-using VF.Api;
 using VF.Builder.Exceptions;
 using VF.Component;
 using VF.Feature;
@@ -23,13 +22,23 @@ namespace VF.Builder {
 
 public class VRCFuryBuilder {
 
-    internal bool SafeRun(VFGameObject avatarObject, VFGameObject originalObject = null) {
-        try {
-            NdmfFirstMenuItem.Run(avatarObject);
-        } catch (Exception e) {
-            Debug.LogException(e);
-            return false;
-        }
+    internal enum Status {
+        Success,
+        Failed
+    }
+
+    internal Status SafeRun(
+        VFGameObject avatarObject,
+        bool keepDebugInfo = false
+    ) {
+        /*
+         * We call SaveAssets here for two reasons:
+         * 1. If the build crashes unity for some reason, the user won't lose changes
+         * 2. If we don't call this here, the first time we call AssetDatabase.CreateAsset can randomly
+         *   fail with "Global asset import parameters have been changed during the import. Importing is restarted."
+         *   followed by "Unable to import newly created asset..."
+         */
+        AssetDatabase.SaveAssets();
 
         Debug.Log("VRCFury invoked on " + avatarObject.name + " ...");
 
@@ -37,22 +46,26 @@ public class VRCFuryBuilder {
             VRCFuryAssetDatabase.WithAssetEditing(() => {
                 try {
                     MaterialLocker.avatarObject = avatarObject;
-                    Run(avatarObject, originalObject);
+                    Run(avatarObject);
                 } finally {
                     MaterialLocker.avatarObject = null;
                 }
             });
         });
 
+        // Make absolutely positively certain that we've removed every non-standard component from the avatar before it gets uploaded
+        StripAllVrcfComponents(avatarObject, keepDebugInfo);
+
+        // Make sure all new assets we've created have actually been saved to disk
         AssetDatabase.SaveAssets();
 
-        return result;
+        return result ? Status.Success : Status.Failed;
     }
 
     internal static bool ShouldRun(VFGameObject avatarObject) {
         return avatarObject
             .GetComponentsInSelfAndChildren<VRCFuryComponent>()
-            .Where(c => !(c is VRCFuryDebugInfo))
+            .Where(c => !(c is VRCFuryDebugInfo || c is VRCFuryTest))
             .Any();
     }
 
@@ -65,7 +78,7 @@ public class VRCFuryBuilder {
         }
     }
 
-    private void Run(GameObject avatarObject, GameObject originalObject) {
+    private void Run(VFGameObject avatarObject) {
         if (VRCFuryTestCopyMenuItem.IsTestCopy(avatarObject)) {
             throw new VRCFBuilderException(
                 "VRCFury Test Copies cannot be uploaded. Please upload the original avatar which was" +
@@ -82,7 +95,6 @@ public class VRCFuryBuilder {
         try {
             ApplyFuryConfigs(
                 avatarObject,
-                originalObject,
                 progress
             );
         } finally {
@@ -94,7 +106,6 @@ public class VRCFuryBuilder {
 
     private static void ApplyFuryConfigs(
         VFGameObject avatarObject,
-        VFGameObject originalObject,
         VRCFProgressWindow progress
     ) {
         var tmpDirParent = $"{TmpFilePackage.GetPath()}/{VRCFuryAssetDatabase.MakeFilenameSafe(avatarObject.name)}";
@@ -129,7 +140,6 @@ public class VRCFuryBuilder {
             allFeaturesInRun = collectedModels,
             allBuildersInRun = collectedBuilders,
             avatarObject = avatarObject,
-            originalObject = originalObject,
             currentFeatureNumProvider = () => currentModelNumber,
             currentFeatureNameProvider = () => currentModelName,
             currentFeatureClipPrefixProvider = () => currentModelClipPrefix,
@@ -155,7 +165,6 @@ public class VRCFuryBuilder {
         AddBuilder(typeof(FinalizeParamsBuilder));
         AddBuilder(typeof(FinalizeControllerBuilder));
         AddBuilder(typeof(MarkThingsAsDirtyJustInCaseBuilder));
-        AddBuilder(typeof(RestingStateBuilder));
         AddBuilder(typeof(RestoreProxyClipsBuilder));
         AddBuilder(typeof(FixEmptyMotionBuilder));
 
@@ -221,15 +230,14 @@ public class VRCFuryBuilder {
             if (loadFailure != null) {
                 throw new VRCFBuilderException($"VRCFury component is corrupted on {configObject.name} ({loadFailure})");
             }
-            var config = vrcFury.config;
-            if (config.features != null) {
-                var debugLogString = $"Importing {config.features.Count} features from {configObject.name}";
-                foreach (var feature in config.features) {
-                    AddModel(feature, configObject);
-                    debugLogString += $"\n{feature.GetType()}";
-                }
-                Debug.Log(debugLogString);
+
+            if (vrcFury.content == null) {
+                continue;
             }
+
+            var debugLogString = $"Importing {vrcFury.content.GetType().Name} from {configObject.name}";
+            AddModel(vrcFury.content, configObject);
+            Debug.Log(debugLogString);
         }
 
         foreach (var type in collectedBuilders.Select(builder => builder.GetType()).ToImmutableHashSet()) {
@@ -242,6 +250,7 @@ public class VRCFuryBuilder {
 
         AddModel(new DirectTreeOptimizer { managedOnly = true }, avatarObject);
 
+        FeatureOrder? lastPriority = null;
         while (actions.Count > 0) {
             var action = actions.Min();
             actions.Remove(action);
@@ -250,6 +259,12 @@ public class VRCFuryBuilder {
                 var statusSkipMessage = $"{service.GetType().Name} ({currentModelNumber}) Skipped (Object no longer exists)";
                 progress.Progress(1 - (actions.Count / (float)totalActionCount), statusSkipMessage);
                 continue;
+            }
+
+            var priority = action.GetPriorty();
+            if (lastPriority != priority) {
+                lastPriority = priority;
+                injector.GetService<RestingStateService>().OnPhaseChanged();
             }
 
             currentModelNumber = action.serviceNum;
