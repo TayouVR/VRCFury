@@ -2,12 +2,15 @@ namespace VF.Feature.Base {
     public enum FeatureOrder {
 
         CleanupLegacy,
-        
+
         // Needs to happen before everything
         FixDoubleFx,
+        RemoveDefaultControllers,
 
         // Needs to happen before anything starts using the Animator
         ResetAnimatorBefore,
+        
+        FixAmbiguousObjectNames,
         
         // Needs to happen before toggles begin getting processed
         DeleteDuringUpload,
@@ -38,13 +41,18 @@ namespace VF.Feature.Base {
         
         // Needs to happen after all controller params (and their types) are in place
         DriveNonFloatTypes,
+        
+        // Needs to happen after animations are done but before objects start to move
+        FixAmbiguousAnimations,
 
         // Needs to happen after builders have scanned their prop children objects for any purpose (since this action
         // may move objects out of the props and onto the avatar base). One example is the FullController which
         // scans the prop children for contact receivers.
         // This should be basically the only place that "moving objects" happens
+        SecurityRestricted, // needs to happen before armature link so that armature linked things can inherit the security restriction
         ArmatureLinkBuilder,
         ShowInFirstPersonBuilder, // needs to happen after ArmatureLink so things moved to head using armature link (like a socket) can get picked up by it
+        WorldConstraintBuilder,
         HapticContactsDetectPosiion,
 
         // Needs to happen after any new skinned meshes have been added
@@ -72,7 +80,6 @@ namespace VF.Feature.Base {
         RecordAllDefaults,
         BlendshapeOptimizer, // Needs to run after RecordDefaults
         CleanupEmptyLayers, // Needs to be before anything using EnsureEmptyBaseLayer
-        RemoveDefaultedAdditiveLayer,
         FixUnsetPlayableLayers,
         PositionDefaultsLayer, // Needs to be right before FixMasks so it winds up at the top of FX, right under the base mask
         FixMasks,
