@@ -15,7 +15,7 @@ using VF.Service;
 using VF.Utils;
 
 namespace VF.Feature {
-    public class TpsScaleFixBuilder : FeatureBuilder<TpsScaleFix> {
+    internal class TpsScaleFixBuilder : FeatureBuilder<TpsScaleFix> {
         [VFAutowired] private readonly ScalePropertyCompensationService scaleCompensationService;
         
         [FeatureBuilderAction(FeatureOrder.TpsScaleFix)]
@@ -59,7 +59,7 @@ namespace VF.Feature {
 
                     if (!isTps && !isSps) return mat;
 
-                    mat = MutableManager.MakeMutable(mat);
+                    mat = mat.Clone();
                     if (isTps) {
                         if (TpsConfigurer.IsLocked(mat)) {
                             throw new VRCFBuilderException(

@@ -11,7 +11,7 @@ using VF.Model;
 using VF.Model.Feature;
 
 namespace VF.Menu {
-    public static class MenuItems {
+    internal static class MenuItems {
         private const string prefix = "Tools/VRCFury/";
 
         public const string testCopy = prefix + "Build an Editor Test Copy";
@@ -34,6 +34,8 @@ namespace VF.Menu {
         public const int detectDuplicatePhysbonesPriority = 1314;
         public const string reserialize = prefix + "Utilites/Reserialize All VRCFury Assets";
         public const int reserializePriority = 1315;
+        public const string uselessOverrides = prefix + "Utilites/Cleanup Useless Overrides";
+        public const int uselessOverridesPriority = 1316;
         
         public const string playMode = prefix + "Settings/Enable VRCFury in play mode";
         public const int playModePriority = 1321;
@@ -45,6 +47,8 @@ namespace VF.Menu {
         public const int hapticTogglePriority = 1324;
         public const string dpsAutoUpgrade = prefix + "Settings/Auto-Upgrade DPS with contacts";
         public const int dpsAutoUpgradePriority = 1325;
+        public const string boundingBoxFix = prefix + "Settings/Automatically fix bounding boxes";
+        public const int boundingBoxFixPriority = 1326;
 
         [MenuItem(upgradeLegacyHaptics, priority = upgradeLegacyHapticsPriority)]
         private static void Run() {

@@ -1,14 +1,17 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using UnityEditor;
 using UnityEditor.Animations;
 using UnityEngine;
+using VF.Utils;
 using Object = UnityEngine.Object;
 
 namespace VF.Builder {
-    public static class VRCFuryAssetDatabase {
+    internal static class VRCFuryAssetDatabase {
         public static string MakeFilenameSafe(string str) {
             var output = "";
             foreach (var c in str) {
@@ -72,7 +75,7 @@ namespace VF.Builder {
             // within Awake() in play mode
             if (EditorApplication.isPlaying && (obj is Material || obj is Mesh || obj is Texture)) {
                 var wrapperPath = GetUniquePath(dir, filename, "asset");
-                var wrapper = ScriptableObject.CreateInstance<BinaryContainer>();
+                var wrapper = VrcfObjectFactory.Create<BinaryContainer>();
                 AssetDatabase.CreateAsset(wrapper, wrapperPath);
                 AssetDatabase.RemoveObjectFromAsset(obj);
                 AssetDatabase.AddObjectToAsset(obj, wrapper);
@@ -84,7 +87,14 @@ namespace VF.Builder {
             // If object was already part of another asset, or was recently deleted, we MUST
             // call this first, or unity will throw an exception
             AssetDatabase.RemoveObjectFromAsset(obj);
+            obj.hideFlags &= ~HideFlags.DontSaveInEditor;
             AssetDatabase.CreateAsset(obj, fullPath);
+        }
+
+        public static void AttachAsset(Object objectToAttach, Object parent) {
+            objectToAttach.hideFlags &= ~HideFlags.DontSaveInEditor;
+            AssetDatabase.RemoveObjectFromAsset(objectToAttach);
+            AssetDatabase.AddObjectToAsset(objectToAttach, parent);
         }
 
         private static bool assetEditing = false;
@@ -141,6 +151,28 @@ namespace VF.Builder {
             }
         }
 
+        /**
+         * Directory.CreateDirectory causes a SIGSEGV on some systems if used to create directories recursively.
+         * No idea why. So we have to make them one-by-one ourselves.
+         *
+         * Received signal SIGSEGV
+         * Obtained 2 stack frames
+         * RtlLookupFunctionEntry returned NULL function. Aborting stack walk.
+         */
+        public static void CreateFolder(string path) {
+            var paths = new List<string>();
+            while (!string.IsNullOrEmpty(path)) {
+                paths.Add(path);
+                path = Path.GetDirectoryName(path);
+            }
+            paths.Reverse();
+            foreach (var p in paths) {
+                if (!Directory.Exists(p)) {
+                    Directory.CreateDirectory(p);
+                }
+            }
+        }
+
         public static Tuple<string, long> ParseId(string id) {
             if (!string.IsNullOrWhiteSpace(id)) {
                 var split = id.Split(':');
@@ -178,6 +210,13 @@ namespace VF.Builder {
             }
 
             return null;
+        }
+
+        public static T LoadAssetByGuid<T>(string guid) where T : Object {
+            if (guid.IsEmpty()) return null;
+            var path = AssetDatabase.GUIDToAssetPath(guid);
+            if (path.IsEmpty()) return null;
+            return AssetDatabase.LoadAssetAtPath<T>(path);
         }
     }
 }

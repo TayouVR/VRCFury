@@ -7,7 +7,7 @@ using VF.Feature;
 using VF.Utils;
 
 namespace VF.Builder {
-    public static class AnimatorStateMachineExtensions {
+    internal static class AnimatorStateMachineExtensions {
         public static StateMachineBehaviour VAddStateMachineBehaviour(this AnimatorStateMachine machine, Type type) {
             // Unity 2019 and lower log an error if this isn't persistent
             StateMachineBehaviour added = null;
@@ -17,6 +17,7 @@ namespace VF.Builder {
             if (added == null) {
                 ThrowProbablyCompileErrorException($"Failed to create state behaviour of type {type.Name}.");
             }
+            VrcfObjectFactory.Register(added);
             return added;
         }
 

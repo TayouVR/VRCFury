@@ -19,14 +19,17 @@ using Toggle = VF.Model.Feature.Toggle;
 
 namespace VF.Feature {
 
-public class ToggleBuilder : FeatureBuilder<Toggle> {
+internal class ToggleBuilder : FeatureBuilder<Toggle> {
     [VFAutowired] private readonly ObjectMoveService mover;
     [VFAutowired] private readonly ActionClipService actionClipService;
     [VFAutowired] private readonly RestingStateService restingState;
     [VFAutowired] private readonly FixWriteDefaultsBuilder writeDefaultsManager;
+    [VFAutowired] private readonly ClipRewriteService clipRewriteService;
+    [VFAutowired] private readonly ClipFactoryService clipFactory;
 
     private readonly List<VFState> exclusiveTagTriggeringStates = new List<VFState>();
-    private VFAParam exclusiveParam;
+    private VFCondition isOn;
+    private Action<VFState, bool> drive;
     private AnimationClip savedRestingClip;
 
     public const string menuPathTooltip = "This is where you'd like the toggle to be located in the menu. This is unrelated"
@@ -53,10 +56,6 @@ public class ToggleBuilder : FeatureBuilder<Toggle> {
             return SeparateList(model.driveGlobalParam);
         }
         return new HashSet<string>(); 
-    }
-
-    public VFAParam GetExclusiveParam() {
-        return exclusiveParam;
     }
 
     private (string,bool) GetParamName() {
@@ -93,8 +92,10 @@ public class ToggleBuilder : FeatureBuilder<Toggle> {
                 def: model.defaultSliderValue,
                 usePrefix: usePrefixOnParam
             );
-            exclusiveParam = param;
             onCase = model.sliderInactiveAtZero ? param.IsGreaterThan(0) : fx.Always();
+            if (model.sliderInactiveAtZero) {
+                drive = (state,on) => { if (!on) state.Drives(param, 0); };
+            }
             defaultOn = model.sliderInactiveAtZero ? model.defaultSliderValue > 0 : true;
             weight = param;
             if (addMenuItem) {
@@ -106,13 +107,13 @@ public class ToggleBuilder : FeatureBuilder<Toggle> {
             }
         } else if (model.useInt) {
             var param = fx.NewInt(paramName, synced: true, saved: model.saved, def: model.defaultOn ? 1 : 0, usePrefix: usePrefixOnParam);
-            exclusiveParam = param;
             onCase = param.IsNotEqualTo(0);
+            drive = (state,on) => state.Drives(param, on ? 1 : 0);
             defaultOn = model.defaultOn;
         } else {
             var param = fx.NewBool(paramName, synced: synced, saved: model.saved, def: model.defaultOn, usePrefix: usePrefixOnParam);
-            exclusiveParam = param;
             onCase = param.IsTrue();
+            drive = (state,on) => state.Drives(param, on ? 1 : 0);
             defaultOn = model.defaultOn;
             if (addMenuItem) {
                 if (model.holdButton) {
@@ -130,6 +131,8 @@ public class ToggleBuilder : FeatureBuilder<Toggle> {
                 }
             }
         }
+        
+        this.isOn = onCase;
 
         var layerName = model.name;
         if (string.IsNullOrEmpty(layerName) && model.useGlobalParam) layerName = model.globalParam;
@@ -182,24 +185,25 @@ public class ToggleBuilder : FeatureBuilder<Toggle> {
         if (weight != null) {
             inState = onState = layer.NewState(onName);
             if (clip.IsStatic()) {
-                clip = clipBuilder.MergeSingleFrameClips(
-                    (0, new AnimationClip()),
+                var motionClip = clipBuilder.MergeSingleFrameClips(
+                    (0, clipFactory.GetEmptyClip()),
                     (1, clip)
                 );
-                clip.UseLinearTangents();
+                motionClip.UseLinearTangents();
+                motionClip.name = clip.name;
+                clip = motionClip;
             }
             clip.SetLooping(false);
             onState.WithAnimation(clip).MotionTime(weight);
             onState.TransitionsToExit().When(onCase.Not());
-            restingClip = clip.Evaluate(model.defaultSliderValue * clip.length);
+            restingClip = clip.Evaluate(model.defaultSliderValue * clip.GetLengthInSeconds());
         } else if (model.hasTransition) {
             var inClip = actionClipService.LoadState(onName + " In", inAction);
             // if clip is empty, copy last frame of transition
             if (clip.GetAllBindings().Length == 0) {
-                clip = fx.NewClip(onName);
-                clip.CopyFromLast(inClip);
+                clip = inClip.GetLastFrame();
             }
-            var outClip = model.simpleOutTransition ? inClip : actionClipService.LoadState(onName + " Out", outAction);
+            var outClip = model.simpleOutTransition ? inClip.Clone() : actionClipService.LoadState(onName + " Out", outAction);
             var outSpeed = model.simpleOutTransition ? -1 : 1;
             
             // Copy "object enabled" and "material" states to in and out clips if they don't already have them
@@ -258,10 +262,9 @@ public class ToggleBuilder : FeatureBuilder<Toggle> {
         }
 
         if (savedRestingClip == null) {
-            var copy = new AnimationClip();
-            copy.CopyFrom(restingClip);
+            var copy = restingClip.Clone();
             savedRestingClip = copy;
-            mover.AddAdditionalManagedClip(savedRestingClip);
+            clipRewriteService.AddAdditionalManagedClip(savedRestingClip);
         }
     }
 
@@ -279,28 +282,27 @@ public class ToggleBuilder : FeatureBuilder<Toggle> {
             var otherTags = other.GetExclusiveTags();
             var conflictsWithOther = myTags.Any(myTag => otherTags.Contains(myTag));
             if (conflictsWithOther) {
-                var otherParam = other.GetExclusiveParam();
-                if (otherParam != null) {
+                if (other.isOn != null && other.drive != null) {
                     foreach (var state in exclusiveTagTriggeringStates) {
-                        state.Drives(otherParam, 0);
+                        other.drive(state, false);
                     }
-                    allOthersOffCondition = allOthersOffCondition.And(otherParam.IsFalse());
+                    allOthersOffCondition = allOthersOffCondition.And(other.isOn.Not());
                 }
             }
         }
 
-        if (model.exclusiveOffState && exclusiveParam != null) {
+        if (model.exclusiveOffState && isOn != null && drive != null) {
             var layer = fx.NewLayer(model.name + " - Off Trigger");
             var off = layer.NewState("Idle");
             var on = layer.NewState("Trigger");
             off.TransitionsTo(on).When(allOthersOffCondition);
-            on.TransitionsTo(off).When(allOthersOffCondition.Not().Or(exclusiveParam.IsFalse()));
-            on.Drives(exclusiveParam, 1);
+            on.TransitionsTo(off).When(allOthersOffCondition.Not().Or(isOn.Not()));
+            drive(on, true);
         }
     }
 
     public override string GetClipPrefix() {
-        return "Toggle " + model.name.Replace('/', '_');
+        return model.name.Replace('/', '_');
     }
 
     [FeatureBuilderAction(FeatureOrder.ApplyToggleRestingState)]
@@ -575,13 +577,7 @@ public class ToggleBuilder : FeatureBuilder<Toggle> {
             sliderProp
         ));
 
-        var toggleOffWarning = VRCFuryEditorUtils.Error(
-            "You cannot use Turn Off for an object that another Toggle Turns On! Turn Off should only be used for objects which are not controlled by their own toggle.\n\n" +
-            "1. You do not need a dedicated 'Turn Off' toggle. Turning off the other toggle will turn off the object.\n\n" +
-            "2. If you want this toggle to turn off the other toggle when activated, use Exclusive Tags instead (in the options on the top right).");
-        toggleOffWarning.SetVisible(false);
-        content.Add(toggleOffWarning);
-        VRCFuryEditorUtils.RefreshOnInterval(toggleOffWarning, () => {
+        content.Add(VRCFuryEditorUtils.Debug(refreshElement: () => {
             var baseObject = avatarObject != null ? avatarObject : featureBaseObject.root;
 
             var turnsOff = model.state.actions
@@ -600,8 +596,15 @@ public class ToggleBuilder : FeatureBuilder<Toggle> {
                 .Where(o => o != null)
                 .ToImmutableHashSet();
             var overlap = turnsOff.Intersect(othersTurnOn);
-            toggleOffWarning.SetVisible(overlap.Count > 0);
-        });
+            if (overlap.Count > 0) {
+                return VRCFuryEditorUtils.Error(
+                    "You cannot use Turn Off for an object that another Toggle Turns On! Turn Off should only be used for objects which are not controlled by their own toggle.\n\n" +
+                    "1. You do not need a dedicated 'Turn Off' toggle. Turning off the other toggle will turn off the object.\n\n" +
+                    "2. If you want this toggle to turn off the other toggle when activated, use Exclusive Tags instead (in the options on the top right).");
+            }
+
+            return new VisualElement();
+        }));
 
         return content;
     }

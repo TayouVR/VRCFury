@@ -17,11 +17,10 @@ using VF.Service;
 using VF.Utils;
 using VF.Utils.Controller;
 using VRC.Dynamics;
-using VRC.SDK3.Dynamics.Contact.Components;
 
 namespace VF.Feature {
     [VFService]
-    public class BakeHapticPlugsBuilder : FeatureBuilder {
+    internal class BakeHapticPlugsBuilder : FeatureBuilder {
         
         [VFAutowired] private readonly ActionClipService actionClipService;
         [VFAutowired] private readonly RestingStateService restingState;
@@ -33,6 +32,9 @@ namespace VF.Feature {
         [VFAutowired] private readonly MathService math;
         [VFAutowired] private readonly DirectBlendTreeService directTree;
         [VFAutowired] private readonly UniqueHapticNamesService uniqueHapticNamesService;
+        [VFAutowired] private readonly ClipRewriteService clipRewriteService;
+        [VFAutowired] private readonly ClipFactoryService clipFactory;
+        [VFAutowired] private readonly AvatarBindingStateService avatarBindingStateService;
 
         private readonly Dictionary<VRCFuryHapticPlug, VRCFuryHapticPlugEditor.BakeResult> bakeResults =
             new Dictionary<VRCFuryHapticPlug, VRCFuryHapticPlugEditor.BakeResult>();
@@ -47,6 +49,7 @@ namespace VF.Feature {
             foreach (var plug in avatarObject.GetComponentsInSelfAndChildren<VRCFuryHapticPlug>()) {
                 try {
                     PhysboneUtils.RemoveFromPhysbones(plug.owner());
+                    if (EditorUserBuildSettings.activeBuildTarget == BuildTarget.Android) continue;
                     var bakeInfo = VRCFuryHapticPlugEditor.Bake(
                         plug,
                         hapticContacts,
@@ -72,7 +75,24 @@ namespace VF.Feature {
             AnimationClip tipLightOnClip = null;
             AnimationClip spsPlusClip = null;
 
-            foreach (var plug in avatarObject.GetComponentsInSelfAndChildren<VRCFuryHapticPlug>()) {
+            var plugs = avatarObject.GetComponentsInSelfAndChildren<VRCFuryHapticPlug>();
+
+            if (plugs.Any(plug => plug.addDpsTipLight)) {
+                var param = fx.NewBool("tipLight", synced: true);
+                manager.GetMenu()
+                    .NewMenuToggle(
+                        $"{spsOptions.GetOptionsPath()}/<b>DPS Tip Light<\\/b>\n<size=20>Allows plugs to trigger old DPS animations",
+                        param);
+                tipLightOnClip = clipFactory.NewClip("EnableAutoReceivers");
+                var layer = fx.NewLayer("Tip Light");
+                var off = layer.NewState("Off");
+                var on = layer.NewState("On").WithAnimation(tipLightOnClip);
+                var whenOn = param.IsTrue();
+                off.TransitionsTo(on).When(whenOn);
+                on.TransitionsTo(off).When(whenOn.Not());
+            }
+
+            foreach (var plug in plugs) {
                 try {
                     if (!bakeResults.TryGetValue(plug, out var bakeInfo)) continue;
 
@@ -80,6 +100,12 @@ namespace VF.Feature {
                     var renderers = bakeInfo.renderers;
                     var worldRadius = bakeInfo.worldRadius;
                     var worldLength = bakeInfo.worldLength;
+                    
+                    addOtherFeature(new ShowInFirstPerson {
+                        useObjOverride = true,
+                        objOverride = bakeRoot,
+                        onlyIfChildOfHead = true
+                    });
 
                     var name = plug.name;
                     if (string.IsNullOrWhiteSpace(name)) {
@@ -116,9 +142,6 @@ namespace VF.Feature {
                         foreach (var r in renderers) {
                             var renderer = r.renderer;
                             addOtherFeature(new TpsScaleFix() { singleRenderer = renderer });
-                            if (renderer is SkinnedMeshRenderer skin) {
-                                addOtherFeature(new BoundingBoxFix2() { skipRenderer = skin });
-                            }
                         }
                     }
 
@@ -160,7 +183,7 @@ namespace VF.Feature {
                                     useHipAvoidance: plug.useHipAvoidance);
                             }
                             void SendParam(string shaderParam, string tag) {
-                                var oneClip = fx.NewClip($"{shaderParam}_one");
+                                var oneClip = clipFactory.NewClip($"{shaderParam}_one");
                                 foreach (var r in renderers.Select(r => r.renderer)) {
                                     var path = r.owner().GetPath(manager.AvatarObject);
                                     var binding = EditorCurveBinding.FloatCurve(path, r.GetType(), $"material.{shaderParam}");
@@ -168,10 +191,10 @@ namespace VF.Feature {
                                 }
 
                                 var self = CreateReceiver(tag, true);
-                                var selfBlend = math.MakeDirect("selfBlend");
+                                var selfBlend = clipFactory.NewDBT("selfBlend");
                                 selfBlend.Add(self, oneClip);
                                 var others = CreateReceiver(tag, false);
-                                var othersBlend = math.MakeDirect("othersBlend");
+                                var othersBlend = clipFactory.NewDBT("othersBlend");
                                 othersBlend.Add(others, oneClip);
                                 directTree.Add(math.GreaterThan(self, others).create(selfBlend, othersBlend));
                             }
@@ -181,7 +204,7 @@ namespace VF.Feature {
                         }
                         
                         if (spsPlusClip == null) {
-                            spsPlusClip = fx.NewClip("SpsPlus");
+                            spsPlusClip = clipFactory.NewClip("SpsPlus");
                             directTree.Add(spsPlusClip);
                         }
 
@@ -194,7 +217,7 @@ namespace VF.Feature {
                         }
                     }
 
-                    if (plug.addDpsTipLight) {
+                    if (tipLightOnClip != null) {
                         var tip = GameObjects.Create("LegacyDpsTip", bakeRoot);
                         tip.active = false;
                         if (EditorUserBuildSettings.activeBuildTarget != BuildTarget.Android) {
@@ -207,21 +230,6 @@ namespace VF.Feature {
                             light.intensity = worldLength;
 
                             dpsTipToDo.Add(light);
-                        }
-
-                        if (tipLightOnClip == null) {
-                            var param = fx.NewBool("tipLight", synced: true);
-                            manager.GetMenu()
-                                .NewMenuToggle(
-                                    $"{spsOptions.GetOptionsPath()}/<b>DPS Tip Light<\\/b>\n<size=20>Allows plugs to trigger old DPS animations",
-                                    param);
-                            tipLightOnClip = fx.NewClip("EnableAutoReceivers");
-                            var layer = fx.NewLayer("Tip Light");
-                            var off = layer.NewState("Off");
-                            var on = layer.NewState("On").WithAnimation(tipLightOnClip);
-                            var whenOn = param.IsTrue();
-                            off.TransitionsTo(on).When(whenOn);
-                            on.TransitionsTo(off).When(whenOn.Not());
                         }
 
                         clipBuilder.Enable(tipLightOnClip, tip);
@@ -238,10 +246,6 @@ namespace VF.Feature {
                             plug.useHipAvoidance
                         );
                     }
-                    
-                    foreach (var r in bakeRoot.GetComponentsInSelfAndChildren<VRCContactReceiver>()) {
-                        _forceStateInAnimatorService.DisableDuringLoad(r.owner());
-                    }
                 } catch (Exception e) {
                     throw new ExceptionWithCause($"Failed to bake SPS Plug: {plug.owner().GetPath(avatarObject)}", e);
                 }
@@ -252,7 +256,7 @@ namespace VF.Feature {
             public VFGameObject plugObject;
             public SkinnedMeshRenderer skin;
             public VFGameObject bakeRoot;
-            public Func<Material, Material> configureMaterial;
+            public Func<int, Material, Material> configureMaterial;
             public IList<string> spsBlendshapes;
         }
         private readonly List<SpsRewriteToDo> spsRewritesToDo = new List<SpsRewriteToDo>();
@@ -320,25 +324,20 @@ namespace VF.Feature {
                             }
                         }
 
-                        if (!curve.IsFloat && binding.path == pathToRenderer && binding.propertyName.StartsWith("m_Materials")) {
+                        if (!curve.IsFloat && binding.path == pathToRenderer && avatarBindingStateService.TryParseMaterialSlot(binding, out _, out var slotNum)) {
                             var newKeys = curve.ObjectCurve.Select(frame => {
-                                if (frame.value is Material m) frame.value = rewrite.configureMaterial(m);
+                                if (frame.value is Material m) frame.value = rewrite.configureMaterial(slotNum, m);
                                 return frame;
                             }).ToArray();
                             clip.SetCurve(binding, newKeys);
                         }
                     }
                 }
-                foreach (var c in manager.GetAllUsedControllers()) {
-                    foreach (var clip in c.GetClips()) {
-                        RewriteClip(clip);
-                    }
-                }
-                foreach (var clip in restingState.GetPendingClips()) {
-                    RewriteClip(clip);
-                }
+                clipRewriteService.ForAllClips(RewriteClip);
 
-                rewrite.skin.sharedMaterials = rewrite.skin.sharedMaterials.Select(rewrite.configureMaterial).ToArray();
+                rewrite.skin.sharedMaterials = rewrite.skin.sharedMaterials
+                    .Select((mat,slotNum) => rewrite.configureMaterial(slotNum, mat))
+                    .ToArray();
             }
         }
 

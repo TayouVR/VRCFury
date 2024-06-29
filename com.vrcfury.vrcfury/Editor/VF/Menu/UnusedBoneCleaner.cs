@@ -6,9 +6,10 @@ using UnityEngine.Animations;
 using VF.Builder;
 using VF.Builder.Exceptions;
 using VF.Feature;
+using VF.Service;
 
 namespace VF.Menu {
-    public static class UnusedBoneCleaner {
+    internal static class UnusedBoneCleaner {
         [MenuItem(MenuItems.unusedBones, priority = MenuItems.unusedBonesPriority)]
         private static void Run() {
             VRCFExceptionUtils.ErrorDialogBoundary(() => {
@@ -50,7 +51,7 @@ namespace VF.Menu {
         }
         
         private static List<string> Clean(VFGameObject avatarObj, bool perform = false) {
-            var used = ArmatureLinkBuilder.GetUsageReasons(avatarObj.root);
+            var used = ArmatureLinkService.GetUsageReasons(avatarObj.root);
             return AvatarCleaner.Cleanup(
                 avatarObj,
                 perform: perform,

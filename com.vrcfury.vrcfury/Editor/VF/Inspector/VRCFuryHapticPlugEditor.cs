@@ -19,13 +19,13 @@ using VRC.Dynamics;
 
 namespace VF.Inspector {
     [CustomEditor(typeof(VRCFuryHapticPlug), true)]
-    public class VRCFuryHapticPlugEditor : VRCFuryComponentEditor<VRCFuryHapticPlug> {
+    internal class VRCFuryHapticPlugEditor : VRCFuryComponentEditor<VRCFuryHapticPlug> {
         protected override VisualElement CreateEditor(SerializedObject serializedObject, VRCFuryHapticPlug target) {
             var container = new VisualElement();
             var configureTps = serializedObject.FindProperty("configureTps");
             var enableSps = serializedObject.FindProperty("enableSps");
             
-            container.Add(ConstraintWarning(target.gameObject));
+            container.Add(ConstraintWarning(target));
             
             var boneWarning = VRCFuryEditorUtils.Warn(
                 "WARNING: This renderer is rigged with bones, but you didn't put the SPS Plug inside a bone! When SPS is used" +
@@ -93,6 +93,15 @@ namespace VF.Inspector {
                 text.Add("Attached renderers: " + string.Join(", ", size.renderers.Select(r => r.owner().name)));
                 text.Add($"Detected Length: {size.worldLength}m");
                 text.Add($"Detected Radius: {size.worldRadius}m");
+
+                text.Add("Patching Material Slots:");
+                foreach (var renderer in size.matSlots.GetKeys()) {
+                    text.Add($"  {renderer.name}");
+                    foreach (var slot in size.matSlots.Get(renderer)) {
+                        var matName = renderer.GetComponent<Renderer>()?.sharedMaterials[slot]?.name ?? "Unset";
+                        text.Add($"    #{slot} (currently {matName})");
+                    }
+                }
 
                 var bones = size.renderers.OfType<SkinnedMeshRenderer>()
                     .SelectMany(skin => skin.bones)
@@ -231,23 +240,84 @@ namespace VF.Inspector {
             }
         }
 
-        public static VisualElement ConstraintWarning(VFGameObject obj, bool isSocket = false) {
-            var output = new VisualElement();
-            var warning = VRCFuryEditorUtils.Warn(
-                "This SPS component is used within a Constraint! " +
-                "AVOID using SPS within constraints if at all possible. " +
-                (isSocket
-                    ? "Sharing one socket in multiple locations will make your avatar LESS performant, not more! "
-                    : "") +
-                "\n\n" +
-                "Check out https://vrcfury.com/sps/constraints for details");
-            warning.SetVisible(false);
-            output.Add(warning);
-            VRCFuryEditorUtils.RefreshOnInterval(output, () => {
-                var found = obj.GetComponentsInSelfAndParents<IConstraint>().Length > 0;
-                warning.SetVisible(found);
+        public static VisualElement ConstraintWarning(UnityEngine.Component c, bool isSocket = false) {
+            return VRCFuryEditorUtils.Debug(refreshElement: () => {
+                var output = new VisualElement();
+                var legacyRendererPaths = new List<string>();
+                var lightPaths = new List<string>();
+                var tipLightPaths = new List<string>();
+                var orificeLightPaths = new List<string>();
+                var avatar = VRCAvatarUtils.GuessAvatarObject(c);
+                if (avatar != null) {
+                    foreach (var light in avatar.GetComponentsInSelfAndChildren<Light>()) {
+                        var path = light.owner().GetPath(avatar, true);
+                        var type = VRCFuryHapticSocketEditor.GetLegacyDpsLightType(light);
+                        if (type == VRCFuryHapticSocketEditor.LegacyDpsLightType.Tip)
+                            tipLightPaths.Add(path);
+                        else if (type == VRCFuryHapticSocketEditor.LegacyDpsLightType.Hole ||
+                                 type == VRCFuryHapticSocketEditor.LegacyDpsLightType.Ring ||
+                                 type == VRCFuryHapticSocketEditor.LegacyDpsLightType.Front)
+                            orificeLightPaths.Add(path);
+                        else
+                            lightPaths.Add(path);
+                    }
+                    foreach (var renderer in avatar.GetComponentsInSelfAndChildren<Renderer>()) {
+                        foreach (var m in renderer.sharedMaterials) {
+                            if (DpsConfigurer.IsDps(m) || TpsConfigurer.IsTps(m)) {
+                                legacyRendererPaths.Add($"{m.name} in {renderer.owner().GetPath(avatar)}");
+                            }
+                        }
+                    }
+                }
+
+                output.Clear();
+                if (tipLightPaths.Any()) {
+                    var warning = VRCFuryEditorUtils.Warn(
+                        "This avatar still contains a DPS tip light! This means your avatar has not been fully converted to SPS," +
+                        " and your DPS penetrator may cause issues if too many sockets are on nearby." +
+                        " Check out https://vrcfury.com/sps for details about how to fully upgrade a DPS penetrator to an SPS plug.\n\n" +
+                        string.Join("\n", tipLightPaths)
+                    );
+                    output.Add(warning);
+                }
+                if (orificeLightPaths.Any()) {
+                    var warning = VRCFuryEditorUtils.Warn(
+                        "This avatar still contains un-upgraded DPS orifice lights! This means your avatar has not been fully converted to SPS," +
+                        " and your DPS orifices may cause issues if too many are active at the same time." +
+                        " Check out https://vrcfury.com/sps for details about how to upgrade DPS orifices to SPS sockets.\n\n" +
+                        string.Join("\n", orificeLightPaths)
+                    );
+                    output.Add(warning);
+                }
+                if (lightPaths.Any()) {
+                    var warning = VRCFuryEditorUtils.Warn(
+                        "This avatar still contains lights! Beware that these lights may interfere with SPS if they are enabled at the same time.\n\n" +
+                        string.Join("\n", lightPaths)
+                    );
+                    output.Add(warning);
+                }
+                if (legacyRendererPaths.Any()) {
+                    var warning = VRCFuryEditorUtils.Warn(
+                        "This avatar still contains a legacy DPS or TPS penetrator! This means your avatar has not been fully converted to SPS," +
+                        " and your legacy penetrator may cause issues if too many sockets are on nearby." +
+                        " Check out https://vrcfury.com/sps for details about how to fully upgrade a DPS penetrator to an SPS plug.\n\n" +
+                        string.Join("\n", legacyRendererPaths)
+                    );
+                    output.Add(warning);
+                }
+                if (c.gameObject.asVf().GetComponentsInSelfAndParents<IConstraint>().Length > 0) {
+                    var warning = VRCFuryEditorUtils.Warn(
+                        "This SPS component is used within a Constraint! " +
+                        "AVOID using SPS within constraints if at all possible. " +
+                        (isSocket
+                            ? "Sharing one socket in multiple locations will make your avatar LESS performant, not more! "
+                            : "") +
+                        " Check out https://vrcfury.com/sps/constraints for details.");
+                    output.Add(warning);
+                }
+
+                return output;
             });
-            return output;
         }
 
         private class GizmoCache {
@@ -393,19 +463,22 @@ namespace VF.Inspector {
 
                         var activeFromMask = PlugMaskGenerator.GetMask(skin, plug);
                         if (plug.enableSps && plug.spsAutorig) {
-                            SpsAutoRigger.AutoRig(skin, worldLength, worldRadius, activeFromMask);
+                            SpsAutoRigger.AutoRig(skin, bakeRoot, worldLength, worldRadius, activeFromMask);
                         }
 
                         var spsBaked = plug.enableSps ? SpsBaker.Bake(skin, tmpDir, activeFromMask, false, spsBlendshapes) : null;
 
                         var finishedCopies = new HashSet<Material>();
-                        Material ConfigureMaterial(Material mat) {
+                        Material ConfigureMaterial(int slotNum, Material mat) {
+                            var shouldPatch = size.matSlots.Get(skin.owner()).Contains(slotNum);
+                            if (!shouldPatch) return mat;
+
                             try {
                                 if (mat == null) return null;
                                 if (EditorUserBuildSettings.activeBuildTarget == BuildTarget.Android) return mat;
 
                                 if (plug.enableSps) {
-                                    var copy = MutableManager.MakeMutable(mat);
+                                    var copy = mat.Clone();
                                     if (finishedCopies.Contains(copy)) return copy;
                                     finishedCopies.Add(copy);
                                     SpsConfigurer.ConfigureSpsMaterial(skin, copy, worldLength,
@@ -414,7 +487,7 @@ namespace VF.Inspector {
                                     return copy;
                                 }
                                 if (plug.configureTps && TpsConfigurer.IsTps(mat)) {
-                                    var copy = MutableManager.MakeMutable(mat);
+                                    var copy = mat.Clone();
                                     if (finishedCopies.Contains(copy)) return copy;
                                     finishedCopies.Add(copy);
                                     TpsConfigurer.ConfigureTpsMaterial(skin, copy, worldLength,
@@ -441,7 +514,7 @@ namespace VF.Inspector {
             } else {
                 rendererResults = renderers.Select(r => new RendererResult {
                     renderer = r,
-                    configureMaterial = m => m
+                    configureMaterial = (slotNum,m) => m
                 }).ToArray();
             }
 
@@ -456,7 +529,7 @@ namespace VF.Inspector {
 
             if (!deferMaterialConfig) {
                 foreach (var r in rendererResults) {
-                    r.renderer.sharedMaterials = r.renderer.sharedMaterials.Select(r.configureMaterial).ToArray();
+                    r.renderer.sharedMaterials = r.renderer.sharedMaterials.Select((mat,slotNum) => r.configureMaterial(slotNum, mat)).ToArray();
                 }
             }
 
@@ -477,7 +550,7 @@ namespace VF.Inspector {
 
         public class RendererResult {
             public Renderer renderer;
-            public Func<Material, Material> configureMaterial;
+            public Func<int, Material, Material> configureMaterial;
             public IList<string> spsBlendshapes;
         }
     }

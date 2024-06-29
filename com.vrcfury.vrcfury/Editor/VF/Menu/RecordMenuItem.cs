@@ -10,7 +10,7 @@ using VRC.SDK3.Avatars.Components;
 using Object = UnityEngine.Object;
 
 namespace VF.Menu {
-//     public class RecordMenuItem {
+     internal class RecordMenuItem {
 //         private static VFGameObject lastSelectedAvatar;
 //         private static Action onRecordingEnd;
 //
@@ -22,7 +22,7 @@ namespace VF.Menu {
 //             AnimationWindow.GetProperty("recording");
 //
 //         [InitializeOnLoadMethod]
-//         public static void Init() {
+//         private static void Init() {
 //             if (EditGameObject == null || recording == null) return;
 //
 //             Selection.selectionChanged += () => {
@@ -60,10 +60,12 @@ namespace VF.Menu {
 //         public static void Record(AnimationClip clip, GameObject baseObject) {
 //             OnRecordingEnd();
 //
-//             var controller = new AnimatorController();
+//             var controller = VrcfObjectFactory.Create<AnimatorController>();
 //             controller.AddLayer("Temp Controller For Recording");
 //             var layer = controller.layers.Last();
+//             VrcfObjectFactory.Register(layer.stateMachine);
 //             var state = layer.stateMachine.AddState("Main");
+//             VrcfObjectFactory.Register(state);
 //             state.motion = clip;
 //
 //             Action onRecordingStart = null;
@@ -113,11 +115,13 @@ namespace VF.Menu {
 //                 Object.DestroyImmediate(a);
 //             }
 //             var animator = clone.AddComponent<Animator>();
-//             var controller = new AnimatorController();
+//             var controller = VrcfObjectFactory.Create<AnimatorController>();
 //             animator.runtimeAnimatorController = controller;
 //             controller.AddLayer("Temp Controller For Recording");
+//             VrcfObjectFactory.Register(layer.stateMachine);
 //             var layer = controller.layers.Last();
 //             var state = layer.stateMachine.AddState("Main");
+//             VrcfObjectFactory.Register(state);
 //             state.motion = selectedAnimation;
 //             
 //             var animationWindow = Resources.FindObjectsOfTypeAll(AnimationWindow)[0];
@@ -131,5 +135,5 @@ namespace VF.Menu {
 //             Debug.Log("Hello world");
 //             */
 //         }
-//     }
+     }
 }

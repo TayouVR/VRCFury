@@ -17,22 +17,22 @@ namespace VF.Service {
      * may add more animations to the avatar later on, and those may use the pre-moved paths.
      */
     [VFService]
-    public class ObjectMoveService {
+    internal class ObjectMoveService {
         [VFAutowired] private readonly ClipBuilderService clipBuilder;
         [VFAutowired] private readonly AvatarManager manager;
+        [VFAutowired] private readonly ClipRewriteService clipRewriteService;
 
         private readonly List<(string, string)> deferred = new List<(string, string)>();
-        private readonly List<AnimationClip> additionalClips = new List<AnimationClip>();
 
         public void Move(VFGameObject obj, VFGameObject newParent = null, string newName = null, bool worldPositionStays = true, bool defer = false) {
             var immovableBones = new HashSet<VFGameObject>();
             immovableBones.Add(manager.AvatarObject);
             // Eyes are weird, because vrc takes full control of them, and we move them as part of the crosseye fix, so ignore them
-            var leftEye = VRCFArmatureUtils.FindBoneOnArmatureOrNull(manager.AvatarObject, HumanBodyBones.LeftEye);
-            var rightEye = VRCFArmatureUtils.FindBoneOnArmatureOrNull(manager.AvatarObject, HumanBodyBones.RightEye);
-            foreach (var bone in VRCFArmatureUtils.GetAllBones(manager.AvatarObject)) {
-                if (bone == leftEye || bone == rightEye) continue;
-                var current = bone;
+            foreach (var pair in VRCFArmatureUtils.GetAllBones(manager.AvatarObject)) {
+                var bone = pair.Key;
+                var boneObj = pair.Value;
+                if (bone == HumanBodyBones.LeftEye || bone == HumanBodyBones.RightEye) continue;
+                var current = boneObj;
                 while (current != null && current != manager.AvatarObject) {
                     immovableBones.Add(current);
                     current = current.parent;
@@ -69,17 +69,8 @@ namespace VF.Service {
                 return path;
             });
 
-            foreach (var controller in manager.GetAllUsedControllers()) {
-                ((AnimatorController)controller.GetRaw()).Rewrite(rewriter);
-            }
-            foreach (var clip in additionalClips) {
-                clip.Rewrite(rewriter);
-            }
+            clipRewriteService.RewriteAllClips(rewriter);
             deferred.Clear();
-        }
-
-        public void AddAdditionalManagedClip(AnimationClip clip) {
-            additionalClips.Add(clip);
         }
     }
 }

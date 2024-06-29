@@ -11,8 +11,8 @@ namespace VF.Service {
      * Time-smooths a parameter within an animator
      */
     [VFService]
-    public class SmoothingService {
-        [VFAutowired] private readonly AvatarManager manager;
+    [VFPrototypeScope]
+    internal class SmoothingService {
         [VFAutowired] private readonly MathService math;
         [VFAutowired] private readonly DirectBlendTreeService directTree;
         [VFAutowired] private readonly FrameTimeService frameTimeService;

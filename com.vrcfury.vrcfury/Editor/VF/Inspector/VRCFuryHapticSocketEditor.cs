@@ -1,31 +1,26 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
-using System.Runtime.CompilerServices;
-using System.Text.RegularExpressions;
 using JetBrains.Annotations;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
-using UnityEngine.Animations;
 using UnityEngine.UIElements;
 using VF.Builder;
 using VF.Builder.Haptics;
 using VF.Component;
 using VF.Menu;
-using VF.Model;
 using VF.Service;
+using VF.Utils;
 using VRC.Dynamics;
 using VRC.SDK3.Avatars.Components;
-using VRC.SDK3.Dynamics.Contact.Components;
 
 namespace VF.Inspector {
     [CustomEditor(typeof(VRCFuryHapticSocket), true)]
-    public class VRCFuryHapticSocketEditor : VRCFuryComponentEditor<VRCFuryHapticSocket> {
+    internal class VRCFuryHapticSocketEditor : VRCFuryComponentEditor<VRCFuryHapticSocket> {
         protected override VisualElement CreateEditor(SerializedObject serializedObject, VRCFuryHapticSocket target) {
             var container = new VisualElement();
             
-            container.Add(VRCFuryHapticPlugEditor.ConstraintWarning(target.gameObject, true));
+            container.Add(VRCFuryHapticPlugEditor.ConstraintWarning(target, true));
             
             container.Add(VRCFuryEditorUtils.BetterProp(serializedObject.FindProperty("name"), "Name in menu / connected apps"));
             
@@ -171,9 +166,9 @@ namespace VF.Inspector {
         }
 
         [CustomEditor(typeof(VRCFurySocketGizmo), true)]
-        [InitializeOnLoad]
         public class VRCFuryHapticPlaySocketEditor : UnityEditor.Editor {
-            static VRCFuryHapticPlaySocketEditor() {
+            [InitializeOnLoadMethod]
+            private static void Init() {
                 VRCFurySocketGizmo.EnableSceneLighting = () => {
                     var sv = EditorWindow.GetWindow<SceneView>();
                     if (sv != null) {
@@ -417,18 +412,24 @@ namespace VF.Inspector {
             var radius = length / 2.5f;
             return Tuple.Create(length, radius);
         }
-        
-        public static bool IsHole(Light light) {
-            var rangeId = light.range % 0.1;
-            return rangeId >= 0.005f && rangeId < 0.015f;
+
+        public enum LegacyDpsLightType {
+            None,
+            Hole,
+            Ring,
+            Front,
+            Tip
         }
-        public static bool IsRing(Light light) {
-            var rangeId = light.range % 0.1;
-            return rangeId >= 0.015f && rangeId < 0.025f;
-        }
-        public static bool IsNormal(Light light) {
-            var rangeId = light.range % 0.1;
-            return rangeId >= 0.045f && rangeId <= 0.055f;
+        public static LegacyDpsLightType GetLegacyDpsLightType(Light light) {
+            if (light.range >= 0.5) return LegacyDpsLightType.None; // Outside of range
+            var secondDecimal = (int)Math.Round((light.range % 0.1) * 100);
+            if ((light.color.maxColorComponent > 1 && light.color.a > 0)) return LegacyDpsLightType.None; // For some reason, dps tip lights are (1,1,1,255)
+            if (secondDecimal == 9 || secondDecimal == 8) return LegacyDpsLightType.Tip;
+            if ((light.color.maxColorComponent > 0 && light.color.a > 0)) return LegacyDpsLightType.None; // Visible light
+            if (secondDecimal == 1 || secondDecimal == 3) return LegacyDpsLightType.Hole;
+            if (secondDecimal == 2 || secondDecimal == 4) return LegacyDpsLightType.Ring;
+            if (secondDecimal == 5 || secondDecimal == 6) return LegacyDpsLightType.Front;
+            return LegacyDpsLightType.None;
         }
 
         public static Tuple<VRCFuryHapticSocket.AddLight, Vector3, Quaternion> GetInfoFromLightsOrComponent(VRCFuryHapticSocket socket) {
@@ -457,7 +458,8 @@ namespace VF.Inspector {
             void Visit(Light light) {
                 if (visited.Contains(light)) return;
                 visited.Add(light);
-                if (!IsHole(light) && !IsRing(light) && !IsNormal(light)) return;
+                var type = GetLegacyDpsLightType(light);
+                if (type != LegacyDpsLightType.Hole && type != LegacyDpsLightType.Ring && type != LegacyDpsLightType.Front) return;
                 act(light);
             }
             foreach (var child in obj.Children()) {
@@ -474,44 +476,44 @@ namespace VF.Inspector {
         public static Tuple<VRCFuryHapticSocket.AddLight, Vector3, Quaternion> GetInfoFromLights(VFGameObject obj, bool directOnly = false) {
             var isRing = false;
             Light main = null;
-            Light normal = null;
+            Light front = null;
             ForEachPossibleLight(obj, directOnly, light => {
+                var type = GetLegacyDpsLightType(light);
                 if (main == null) {
-                    if (IsHole(light)) {
+                    if (type == LegacyDpsLightType.Hole) {
                         main = light;
-                    } else if (IsRing(light)) {
+                    } else if (type == LegacyDpsLightType.Ring) {
                         main = light;
                         isRing = true;
                     }
                 }
-                if (normal == null && IsNormal(light)) {
-                    normal = light;
+                if (front == null && type == LegacyDpsLightType.Front) {
+                    front = light;
                 }
             });
 
-            if (main == null || normal == null) return null;
+            if (main == null || front == null) return null;
 
             var position = obj.InverseTransformPoint(main.owner().worldPosition);
-            var normalPosition = obj.InverseTransformPoint(normal.owner().worldPosition);
-            var forward = (normalPosition - position).normalized;
+            var frontPosition = obj.InverseTransformPoint(front.owner().worldPosition);
+            var forward = (frontPosition - position).normalized;
             var rotation = Quaternion.LookRotation(forward);
 
             return Tuple.Create(isRing ? VRCFuryHapticSocket.AddLight.Ring : VRCFuryHapticSocket.AddLight.Hole, position, rotation);
         }
 
         public static bool ShouldProbablyHaveTouchZone(VRCFuryHapticSocket socket) {
-            if (HapticUtils.IsDirectChildOfHips(socket.owner())) {
-                var name = GetName(socket).ToLower();
-                if (name.Contains("rubbing") || name.Contains("job")) {
-                    return false;
-                }
-                return true;
-            }
-            return false;
+            if (ClosestBoneUtils.GetClosestHumanoidBone(socket.owner()) != HumanBodyBones.Hips) return false;
+
+            var name = GetName(socket).ToLower();
+            if (name.Contains("rubbing") || name.Contains("job")) return false;
+            
+            return true;
         }
 
         public static bool ShouldProbablyBeHole(VRCFuryHapticSocket socket) {
-            if (HapticUtils.IsChildOfBone(socket.owner(), HumanBodyBones.Head)) return true;
+            var closestBone = ClosestBoneUtils.GetClosestHumanoidBone(socket.owner());
+            if (closestBone == HumanBodyBones.Head || closestBone == HumanBodyBones.Jaw) return true;
             return ShouldProbablyHaveTouchZone(socket);
         }
 

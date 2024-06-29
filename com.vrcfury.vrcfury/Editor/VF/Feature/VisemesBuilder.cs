@@ -15,12 +15,13 @@ using VRC.SDKBase;
 
 namespace VF.Feature {
 
-public class VisemesBuilder : FeatureBuilder<Visemes> {
+internal class VisemesBuilder : FeatureBuilder<Visemes> {
     [VFAutowired] private readonly TrackingConflictResolverBuilder trackingConflictResolverBuilder;
     [VFAutowired] private readonly ActionClipService actionClipService;
     [VFAutowired] private readonly DirectBlendTreeService directTree;
     [VFAutowired] private readonly MathService math;
     [VFAutowired] private readonly SmoothingService smooth;
+    [VFAutowired] private readonly ClipFactoryService clipFactory;
 
     private readonly string[] visemeNames = {
         "sil", "PP", "FF", "TH", "DD", "kk", "CH", "SS", "nn", "RR", "aa", "E", "I", "O", "U"
@@ -33,13 +34,12 @@ public class VisemesBuilder : FeatureBuilder<Visemes> {
             avatar.lipSync = VRC_AvatarDescriptor.LipSyncStyle.VisemeParameterOnly;
         }
 
-        var fx = GetFx();
         var VisemeParam = fx.NewFloat("Viseme", usePrefix: false);
         var VolumeParam = fx.NewFloat("Voice", usePrefix: false);
 
-        var voiceTree = math.MakeDirect("Advanced Visemes");
+        var voiceTree = clipFactory.NewDBT("Advanced Visemes");
         var enabled = math.MakeAap("AdvancedVisemesEnabled", def: 1);
-        var volumeTree = math.MakeDirect("Advanced Visemes");
+        var volumeTree = clipFactory.NewDBT("Advanced Visemes");
         VFAFloat volumeToUse;
         if (model.instant) {
             volumeToUse = math.SetValueWithConditions(
@@ -61,7 +61,8 @@ public class VisemesBuilder : FeatureBuilder<Visemes> {
         directTree.Add(enabled, volumeTree);
 
         void addViseme(int index, string text, State clipState) {
-            var clip = actionClipService.LoadState(text, clipState);
+            var clip = actionClipService.LoadState("Viseme " + text, clipState).GetLastFrame();
+
             var intensityRaw = math.SetValueWithConditions(
                 $"{text}Raw",
                 (1, math.Equals(VisemeParam, index)),
@@ -93,7 +94,7 @@ public class VisemesBuilder : FeatureBuilder<Visemes> {
 
             directTree.Add(enabledWhen.create(
                 math.MakeSetter(enabled, 1),
-                new AnimationClip()
+                clipFactory.GetEmptyClip()
             ));
         });
     }

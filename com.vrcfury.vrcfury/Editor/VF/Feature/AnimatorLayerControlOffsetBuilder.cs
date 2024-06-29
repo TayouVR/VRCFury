@@ -16,7 +16,7 @@ namespace VF.Feature {
      * the animators which may have been broken by VRCFury adding / deleting layers
      * while doing other things.
      */
-    public class AnimatorLayerControlOffsetBuilder : FeatureBuilder {
+    internal class AnimatorLayerControlOffsetBuilder : FeatureBuilder {
         private readonly VFMultimapList<VRCAnimatorLayerControl, AnimatorStateMachine> mapping
             = new VFMultimapList<VRCAnimatorLayerControl, AnimatorStateMachine>();
         
@@ -109,6 +109,12 @@ namespace VF.Feature {
                 if (mapping.Get(key).Contains(oldTargetSm)) {
                     mapping.Put(key, newTargetSm);
                 }
+            }
+        }
+        
+        public void Alias(VRCAnimatorLayerControl from, VRCAnimatorLayerControl to) {
+            foreach (var sm in mapping.Get(from)) {
+                mapping.Put(to, sm);
             }
         }
 

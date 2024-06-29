@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEditor;
@@ -6,6 +7,7 @@ using VF.Builder;
 using VF.Injector;
 using VF.Inspector;
 using VF.Utils;
+using Object = UnityEngine.Object;
 
 namespace VF.Service {
     /**
@@ -13,14 +15,16 @@ namespace VF.Service {
      * Typically, this would be trivial, but unfortunately there are a lot of small edges cases which must be handled.
      */
     [VFService]
-    public class AvatarBindingStateService {
+    internal class AvatarBindingStateService {
         [VFAutowired] private GlobalsService globals;
         private VFGameObject avatarObject => globals.avatarObject;
 
         public void ApplyClip(AnimationClip clip) {
-            clip.SampleAnimation(avatarObject, 0);
+            var copy = clip.Clone();
+            copy.FinalizeAsset();
+            copy.SampleAnimation(avatarObject, 0);
             foreach (var (binding,curve) in clip.GetAllCurves()) {
-                var value = curve.GetFirst();
+                var value = curve.GetLast();
                 HandleMaterialSwaps(binding, value);
                 HandleMaterialProperties(binding, value);
             }
@@ -71,7 +75,13 @@ namespace VF.Service {
                 }
             }
 
-            return AnimationUtility.GetFloatValue(avatarObject, binding, out data);
+            try {
+                return AnimationUtility.GetFloatValue(avatarObject, binding, out data);
+            } catch (Exception) {
+                // Unity throws a `UnityException: Invalid type` if you request an object that is actually a float or vice versa
+                data = 0;
+                return false;
+            }
         }
         public bool GetObject(EditorCurveBinding binding, out Object data, bool trustUnity = false) {
             if (!trustUnity) {
@@ -82,10 +92,16 @@ namespace VF.Service {
                 }
             }
 
-            return AnimationUtility.GetObjectReferenceValue(avatarObject, binding, out data);
+            try {
+                return AnimationUtility.GetObjectReferenceValue(avatarObject, binding, out data);
+            } catch (Exception) {
+                // Unity throws a `UnityException: Invalid type` if you request an object that is actually a float or vice versa
+                data = null;
+                return false;
+            }
         }
 
-        private static bool TryParseMaterialProperty(EditorCurveBinding binding, out string propertyName) {
+        public static bool TryParseMaterialProperty(EditorCurveBinding binding, out string propertyName) {
             if (binding.propertyName.StartsWith("material.")) {
                 propertyName = binding.propertyName.Substring("material.".Length);
                 return true;
@@ -107,7 +123,7 @@ namespace VF.Service {
             return component != null;
         }
 
-        private bool TryParseMaterialSlot(EditorCurveBinding binding, out Renderer renderer, out int slotNum) {
+        public bool TryParseMaterialSlot(EditorCurveBinding binding, out Renderer renderer, out int slotNum) {
             renderer = null;
             slotNum = 0;
             var prefix = "m_Materials.Array.data[";
@@ -157,7 +173,7 @@ namespace VF.Service {
 
                 var type = mat.GetPropertyType(propName);
                 if (type == ShaderUtil.ShaderPropertyType.Float || type == ShaderUtil.ShaderPropertyType.Range) {
-                    mat = MutableManager.MakeMutable(mat);
+                    mat = mat.Clone();
                     mat.SetFloat(propName, val.GetFloat());
                     return mat;
                 }
@@ -171,23 +187,23 @@ namespace VF.Service {
                 // behaviour is that it should be set to 0. However, unit really tries to not allow you to be missing
                 // one component in your animator (by deleting them all at once), so it's probably not a big deal.
                 if (bundleType == ShaderUtil.ShaderPropertyType.Color) {
-                    mat = MutableManager.MakeMutable(mat);
+                    mat = mat.Clone();
                     var color = mat.GetColor(bundleName);
                     if (bundleSuffix == "r") color.r = val.GetFloat();
                     if (bundleSuffix == "g") color.g = val.GetFloat();
                     if (bundleSuffix == "b") color.b = val.GetFloat();
                     if (bundleSuffix == "a") color.a = val.GetFloat();
-                    mat.SetColor(propName, color);
+                    mat.SetColor(bundleName, color);
                     return mat;
                 }
                 if (bundleType == ShaderUtil.ShaderPropertyType.Vector) {
-                    mat = MutableManager.MakeMutable(mat);
+                    mat = mat.Clone();
                     var vector = mat.GetVector(bundleName);
                     if (bundleSuffix == "x") vector.x = val.GetFloat();
                     if (bundleSuffix == "y") vector.y = val.GetFloat();
                     if (bundleSuffix == "z") vector.z = val.GetFloat();
                     if (bundleSuffix == "w") vector.w = val.GetFloat();
-                    mat.SetVector(propName, vector);
+                    mat.SetVector(bundleName, vector);
                     return mat;
                 }
 

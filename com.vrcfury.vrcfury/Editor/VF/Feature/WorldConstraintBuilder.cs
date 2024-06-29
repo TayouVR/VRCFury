@@ -13,10 +13,11 @@ using VF.Utils;
 using VF.Utils.Controller;
 
 namespace VF.Feature {
-    public class WorldConstraintBuilder : FeatureBuilder<WorldConstraint> {
+    internal class WorldConstraintBuilder : FeatureBuilder<WorldConstraint> {
 
         [VFAutowired] private readonly DirectBlendTreeService directTree;
         [VFAutowired] private readonly ObjectMoveService mover;
+        [VFAutowired] private readonly ClipFactoryService clipFactory;
 
         private VFABool toggle;
         
@@ -54,7 +55,7 @@ namespace VF.Feature {
             resetConstraint.constraintActive = true;
             resetConstraint.locked = true;
 
-            var dropClip = new AnimationClip();
+            var dropClip = clipFactory.NewClip("Drop");
             clipBuilder.Enable(dropClip, resetConstraint, false);
             foreach (var constriant in featureBaseObject.GetComponents<IConstraint>()) {
                 clipBuilder.Enable(dropClip, constriant, false);

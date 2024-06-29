@@ -18,7 +18,7 @@ using VRC.SDK3.Avatars.Components;
 
 namespace VF.Feature.Base {
 
-public static class FeatureFinder {
+internal static class FeatureFinder {
     private static Dictionary<Type,Type> allFeatures;
     private static Dictionary<Type,Type> GetAllFeatures() {
         if (allFeatures == null) {
@@ -38,7 +38,7 @@ public static class FeatureFinder {
                     }
                 }
             }
-            Debug.Log("VRCFury loaded " + allFeatures.Count + " features");
+            Debug.Log("VRCFury loaded " + allFeatures.Count + " component types");
         }
         return allFeatures;
     }
@@ -149,7 +149,6 @@ public static class FeatureFinder {
         if (bodyContent != null) {
             var body = new VisualElement();
             body.Add(bodyContent);
-            body.style.marginLeft = 10;
             body.style.marginTop = 5;
             wrapper.Add(body);
         }
@@ -157,7 +156,6 @@ public static class FeatureFinder {
         return wrapper;
     }
 
-    [CanBeNull]
     public static FeatureBuilder GetBuilder(FeatureModel model, VFGameObject gameObject, VRCFuryInjector injector, VFGameObject avatarObject) {
         if (model == null) {
             throw new Exception(
@@ -169,7 +167,7 @@ public static class FeatureFinder {
             throw new Exception("Failed to find feature implementation for " + modelType.Name + " while building");
         }
 
-        var builder = (FeatureBuilder)injector.CreateAndInject(builderType);
+        var builder = (FeatureBuilder)injector.GetService(builderType, useCache: false);
         if (builder.AvailableOnRootOnly() && !AllowRootFeatures(gameObject, avatarObject)) {
             throw new Exception($"This VRCFury component ({builder.GetEditorTitle()}) is only allowed on the root object of the avatar, but was found in {gameObject.GetPath(avatarObject)}.");
         }

@@ -16,7 +16,7 @@ using Object = UnityEngine.Object;
 
 namespace VF.Inspector {
 
-public static class VRCFuryEditorUtils {
+internal static class VRCFuryEditorUtils {
 
     public static VisualElement List(
         SerializedProperty list,
@@ -536,6 +536,25 @@ public static class VRCFuryEditorUtils {
     }
     
     public static VisualElement Debug(string message = "", Func<string> refreshMessage = null, Func<VisualElement> refreshElement = null, float interval = 1) {
+
+        if (refreshElement != null) {
+            var holder = new VisualElement();
+            void Update() {
+                holder.Clear();
+                try {
+                    var newContent = refreshElement();
+                    if (newContent != null) {
+                        holder.Add(newContent);
+                    }
+                } catch (Exception e) {
+                    holder.Add(Error("Error: " + e.Message));
+                }
+            }
+            Update();
+            holder.schedule.Execute(Update).Every((long)(interval * 1000));
+            return holder;
+        }
+
         var el = new VisualElement() {
             style = {
                 backgroundColor = new Color(0,0,0,0.1f),
@@ -553,42 +572,25 @@ public static class VRCFuryEditorUtils {
         el.Add(rightColumn);
         rightColumn.Add(WrappedLabel("Debug Info").Bold());
 
-        if (refreshElement != null) {
-            var holder = new VisualElement();
-            rightColumn.Add(holder);
-            RefreshOnInterval(el, () => {
-                holder.Clear();
+        var label = WrappedLabel(message);
+        rightColumn.Add(label);
+        if (refreshMessage != null) {
+            void Update() {
                 var show = false;
                 try {
-                    var newContent = refreshElement();
-                    if (newContent != null) {
-                        holder.Add(newContent);
-                        show = true;
-                    }
+                    label.text = refreshMessage();
+                    show = !string.IsNullOrWhiteSpace(label.text);
                 } catch (Exception e) {
-                    holder.Add(WrappedLabel($"Error: {e.Message}"));
+                    label.text = $"Error: {e.Message}";
                     show = true;
                 }
                 el.SetVisible(show);
-            }, interval);
-        } else {
-            var label = WrappedLabel(message);
-            rightColumn.Add(label);
-            if (refreshMessage != null) {
-                RefreshOnInterval(el, () => {
-                    var show = false;
-                    try {
-                        label.text = refreshMessage();
-                        show = !string.IsNullOrWhiteSpace(label.text);
-                    } catch (Exception e) {
-                        label.text = $"Error: {e.Message}";
-                        show = true;
-                    }
-                    el.SetVisible(show);
-                }, interval);
             }
+
+            Update();
+            label.schedule.Execute(Update).Every((long)(interval * 1000));
         }
-        
+
         return el;
     }
 
@@ -655,7 +657,7 @@ public static class VRCFuryEditorUtils {
     }
 
     [InitializeOnLoadMethod]
-    public static void MakeMarkDirtyAvailableToRuntime() {
+    private static void MakeMarkDirtyAvailableToRuntime() {
         VRCFury.markDirty = MarkDirty;
     }
     public static void MarkDirty(Object obj) {
@@ -675,24 +677,6 @@ public static class VRCFuryEditorUtils {
         if (!scene.isLoaded) return;
         if (!scene.IsValid()) return;
         EditorSceneManager.MarkSceneDirty(scene);
-    }
-
-    public static void RefreshOnInterval(VisualElement el, Action run, float interval = 1) {
-        double lastUpdate = 0;
-        void Update() {
-            var now = EditorApplication.timeSinceStartup;
-            if (lastUpdate < now - interval) {
-                lastUpdate = now;
-                run();
-            }
-        }
-        el.RegisterCallback<AttachToPanelEvent>(e => {
-            EditorApplication.update += Update;
-        });
-        el.RegisterCallback<DetachFromPanelEvent>(e => {
-            EditorApplication.update -= Update;
-        });
-        Update();
     }
 
     public static string Rev(string s) {

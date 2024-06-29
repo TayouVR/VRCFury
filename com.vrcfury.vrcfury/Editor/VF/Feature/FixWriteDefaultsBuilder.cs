@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using JetBrains.Annotations;
 using UnityEditor;
 using UnityEditor.Animations;
 using UnityEngine;
@@ -17,10 +18,12 @@ using VF.Utils.Controller;
 using VRC.SDK3.Avatars.Components;
 
 namespace VF.Feature {
-    public class FixWriteDefaultsBuilder : FeatureBuilder {
+    internal class FixWriteDefaultsBuilder : FeatureBuilder {
 
         [VFAutowired] private readonly OriginalAvatarService originalAvatar;
         [VFAutowired] private readonly AvatarBindingStateService bindingStateService;
+        [VFAutowired] private readonly FullBodyEmoteService fullBodyEmoteService;
+        [VFAutowired] private readonly ClipFactoryService clipFactory;
 
         public void RecordDefaultNow(EditorCurveBinding binding, bool isFloat, bool force = false) {
             if (binding.type == typeof(Animator)) return;
@@ -51,7 +54,7 @@ namespace VF.Feature {
         private AnimationClip GetDefaultClip() {
             if (_defaultClip == null) {
                 var fx = GetFx();
-                _defaultClip = fx.NewClip("Defaults");
+                _defaultClip = clipFactory.NewClip("Defaults");
                 _defaultLayer = fx.NewLayer("Defaults", 0);
                 _defaultLayer.NewState("Defaults").WithAnimation(_defaultClip);
             }
@@ -60,8 +63,8 @@ namespace VF.Feature {
             }
             return _defaultClip;
         }
-        public VFLayer GetDefaultLayer() {
-            GetDefaultClip();
+
+        [CanBeNull] public VFLayer GetDefaultLayer() {
             return _defaultLayer;
         }
 
@@ -77,9 +80,15 @@ namespace VF.Feature {
             var propsInNonFx = new HashSet<EditorCurveBinding>();
             foreach (var c in manager.GetAllUsedControllers()) {
                 if (c.GetType() == VRCAvatarDescriptor.AnimLayerType.FX) continue;
-                foreach (var clip in c.GetClips()) {
-                    foreach (var binding in clip.GetAllBindings()) {
-                        propsInNonFx.Add(binding.Normalize());
+                foreach (var layer in c.GetLayers()) {
+                    // FullBodyEmoteService anims may have non-muscle properties, but they are ALWAYS
+                    // also present in the FX triggering layer, meaning they are safe to record defaults for, because any
+                    // time the full body anim is on, the fx clip will also be on.
+                    if (fullBodyEmoteService.DidAddLayer(layer)) continue;
+                    foreach (var clip in new AnimatorIterator.Clips().From(layer)) {
+                        foreach (var binding in clip.GetAllBindings()) {
+                            propsInNonFx.Add(binding.Normalize());
+                        }
                     }
                 }
             }

@@ -18,7 +18,7 @@ using VF.Utils;
 using VRC.SDK3.Avatars.Components;
 
 namespace VF.Feature.Base {
-    public abstract class FeatureBuilder {
+    internal abstract class FeatureBuilder {
         [JsonProperty(Order = -2)] public string type;
 
         [VFAutowired] protected readonly ClipBuilderService clipBuilder;
@@ -43,6 +43,10 @@ namespace VF.Feature.Base {
 
         public virtual VisualElement CreateEditor(SerializedProperty prop) {
             return VRCFuryEditorUtils.WrappedLabel("No body");
+        }
+
+        public virtual string FailWhenAdded() {
+            return null;
         }
 
         public virtual bool OnlyOneAllowed() {
@@ -73,7 +77,7 @@ namespace VF.Feature.Base {
         }
     }
 
-    public abstract class FeatureBuilder<ModelType> : FeatureBuilder where ModelType : FeatureModel {
+    internal abstract class FeatureBuilder<ModelType> : FeatureBuilder where ModelType : FeatureModel {
         [NonSerialized] [JsonIgnore] public ModelType model;
     }
 }

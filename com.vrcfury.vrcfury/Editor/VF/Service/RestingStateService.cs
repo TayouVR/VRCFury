@@ -5,6 +5,7 @@ using System.Reflection;
 using UnityEditor;
 using UnityEngine;
 using VF.Builder;
+using VF.Builder.Exceptions;
 using VF.Component;
 using VF.Feature;
 using VF.Feature.Base;
@@ -23,13 +24,13 @@ namespace VF.Service {
      * something is wrong (perhaps the user gave conflicting instructions?)
      */
     [VFService]
-    public class RestingStateService {
+    internal class RestingStateService {
 
         [VFAutowired] private readonly GlobalsService globals;
         private VFGameObject avatarObject => globals.avatarObject;
-        [VFAutowired] private readonly ObjectMoveService mover;
         [VFAutowired] private readonly ActionClipService actionClipService;
         [VFAutowired] private readonly AvatarBindingStateService bindingstateService;
+        [VFAutowired] private readonly ClipRewriteService clipRewriteService;
         private readonly List<PendingClip> pendingClips = new List<PendingClip>();
 
         public class PendingClip {
@@ -38,10 +39,9 @@ namespace VF.Service {
         }
 
         public void ApplyClipToRestingState(AnimationClip clip, string owner = null) {
-            var copy = new AnimationClip();
-            copy.CopyFrom(clip);
+            var copy = clip.Clone();
             pendingClips.Add(new PendingClip { clip = copy, owner = owner ?? globals.currentFeatureNameProvider() });
-            mover.AddAdditionalManagedClip(copy);
+            clipRewriteService.AddAdditionalManagedClip(copy);
         }
 
         public void OnPhaseChanged() {
@@ -52,7 +52,7 @@ namespace VF.Service {
             foreach (var pending in pendingClips) {
                 bindingstateService.ApplyClip(pending.clip);
                 foreach (var (binding,curve) in pending.clip.GetAllCurves()) {
-                    var value = curve.GetFirst();
+                    var value = curve.GetLast();
                     debugLog.Add($"{binding.path} {binding.type.Name} {binding.propertyName} = {value}\n  via {pending.owner}");
                     StoreBinding(binding, value, pending.owner);
                 }
@@ -65,35 +65,36 @@ namespace VF.Service {
 
         [FeatureBuilderAction(FeatureOrder.ApplyImplicitRestingStates)]
         public void ApplyImplicitRestingStates() {
-            foreach (var component in globals.avatarObject.GetComponentsInSelfAndChildren<VRCFuryComponent>()) {
-                var path = component.owner().GetPath(globals.avatarObject, true);
-                UnitySerializationUtils.Iterate(component, visit => {
-                    if (visit.field?.GetCustomAttribute<DoNotApplyRestingStateAttribute>() != null) {
-                        return UnitySerializationUtils.IterateResult.Skip;
-                    }
-                    if (visit.value is State action) {
-                        var built = actionClipService.LoadStateAdv("", action);
-                        ApplyClipToRestingState(built.implicitRestingClip, owner: $"{component.GetType().Name} on {path}");
-                    }
-                    if (visit.value is FullController fc) {
-                        if (!string.IsNullOrWhiteSpace(fc.toggleParam)) {
-                            var rootObj = component.owner();
-                            if (fc.rootObjOverride != null) rootObj = fc.rootObjOverride;
-                            var built = actionClipService.LoadStateAdv("", new State {
-                                actions = {
-                                    new ObjectToggleAction { obj = rootObj, mode = ObjectToggleAction.Mode.TurnOn }
-                                }
-                            });
+            foreach (var component in avatarObject.GetComponentsInSelfAndChildren<VRCFuryComponent>()) {
+                var path = component.owner().GetPath(avatarObject, true);
+                var owner = $"{component.GetType().Name} on {path}";
+                try {
+                    UnitySerializationUtils.Iterate(component, visit => {
+                        if (visit.field?.GetCustomAttribute<DoNotApplyRestingStateAttribute>() != null) {
+                            return UnitySerializationUtils.IterateResult.Skip;
+                        }
+                        if (visit.value is State action) {
+                            var built = actionClipService.LoadStateAdv("", action);
                             ApplyClipToRestingState(built.implicitRestingClip, owner: $"{component.GetType().Name} on {path}");
                         }
-                    }
-                    return UnitySerializationUtils.IterateResult.Continue;
-                });
+                        if (visit.value is FullController fc) {
+                            if (!string.IsNullOrWhiteSpace(fc.toggleParam)) {
+                                var rootObj = component.owner();
+                                if (fc.rootObjOverride != null) rootObj = fc.rootObjOverride;
+                                var built = actionClipService.LoadStateAdv("", new State {
+                                    actions = {
+                                        new ObjectToggleAction { obj = rootObj, mode = ObjectToggleAction.Mode.TurnOn }
+                                    }
+                                });
+                                ApplyClipToRestingState(built.implicitRestingClip, owner: owner);
+                            }
+                        }
+                        return UnitySerializationUtils.IterateResult.Continue;
+                    });
+                } catch(Exception e) {
+                    throw new ExceptionWithCause($"Failed to handle {owner}", e);
+                }
             }
-        }
-
-        public IEnumerable<AnimationClip> GetPendingClips() {
-            return pendingClips.Select(pending => pending.clip);
         }
 
         private readonly Dictionary<EditorCurveBinding, StoredEntry> stored =

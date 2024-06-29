@@ -1,5 +1,5 @@
 namespace VF.Feature.Base {
-    public enum FeatureOrder {
+    internal enum FeatureOrder {
 
         CleanupLegacy,
 
@@ -13,8 +13,6 @@ namespace VF.Feature.Base {
         FixAmbiguousObjectNames,
         
         // Needs to happen before toggles begin getting processed
-        DeleteDuringUpload,
-        RemoveEditorOnly,
         ApplyDuringUpload,
 
         // Needs to be the first thing to instantiate the ControllerManagers
@@ -50,10 +48,8 @@ namespace VF.Feature.Base {
         // scans the prop children for contact receivers.
         // This should be basically the only place that "moving objects" happens
         SecurityRestricted, // needs to happen before armature link so that armature linked things can inherit the security restriction
-        ArmatureLinkBuilder,
-        ShowInFirstPersonBuilder, // needs to happen after ArmatureLink so things moved to head using armature link (like a socket) can get picked up by it
+        ArmatureLink,
         WorldConstraintBuilder,
-        HapticContactsDetectPosiion,
 
         // Needs to happen after any new skinned meshes have been added
         BoundingBoxFix,
@@ -74,9 +70,9 @@ namespace VF.Feature.Base {
         ApplyToggleRestingState,
 
         // Finalize Controllers
+        UnlimitedParameters,
         FixGestureFxConflict, // Needs to run before DirectTreeOptimizer messes with FX parameters
         BlendShapeLinkFixAnimations, // Needs to run after most things are done messing with animations, since it'll make copies of the blendshape curves
-        DirectTreeOptimizer, // Needs to run after animations are done, but before RecordDefaults
         RecordAllDefaults,
         BlendshapeOptimizer, // Needs to run after RecordDefaults
         CleanupEmptyLayers, // Needs to be before anything using EnsureEmptyBaseLayer
@@ -86,32 +82,33 @@ namespace VF.Feature.Base {
         LocomotionConflictResolver,
         ActionConflictResolver,
         TrackingConflictResolver,
+        NormalizeBlendTrees, // Needs to happen before DirectTreeOptimizer (more trees may be eligible for optimization after normalizing)
+        DirectTreeOptimizer, // Needs to run after animations are done, including everything that makes its own DBT, including TrackingConflictResolver
         AvoidMmdLayers, // Needs to be after CleanupEmptyLayers (which removes empty layers) and FixMasks and RecordAllDefaults (which may insert layers at the top)
         AdjustWriteDefaults,
         FixEmptyMotions,
         AnimatorLayerControlFix,
         RemoveNonQuestMaterials,
-        RemoveBadControllerTransitions,
+        UpgradeWrongParamTypes,
+        OptimizeBlendTrees,
         FinalizeController,
 
         // Finalize Menus
         MoveSpsMenus,
         MoveMenuItems,
         FinalizeMenu,
-
-        // Finalize Parameters
-        FixBadParameters,
-        FinalizeParams,
+        FixMipmapStreaming,
+        FixMenuIconTextures,
 
         MarkThingsAsDirtyJustInCase,
         
         RemoveJunkAnimators,
 
-        // Needs to be at the very end, because it places immutable clips into the avatar
-        RestoreProxyClips,
+        SaveAssets,
+        
         // Needs to happen after everything is done using the animator
         ResetAnimatorAfter,
-
-        SaveAssets,
+        
+        Validation,
     }
 }

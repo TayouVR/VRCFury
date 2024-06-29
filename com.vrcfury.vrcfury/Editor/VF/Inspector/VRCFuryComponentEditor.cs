@@ -3,16 +3,19 @@ using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.UIElements;
 using VF.Builder;
 using VF.Component;
 using VF.Model;
+using VF.Model.Feature;
 using VF.Utils;
+using VRC.SDK3.Avatars.Components;
 
 namespace VF.Inspector {
-    public class VRCFuryComponentEditor<T> : UnityEditor.Editor where T : VRCFuryComponent {
+    internal class VRCFuryComponentEditor<T> : UnityEditor.Editor where T : VRCFuryComponent {
         private GameObject dummyObject;
 
         public sealed override VisualElement CreateInspectorGUI() {
@@ -25,14 +28,13 @@ namespace VF.Inspector {
             }
 
             var avatarObject = VRCAvatarUtils.GuessAvatarObject(target as UnityEngine.Component);
-            var versionLabel = new Label(SceneViewOverlay.GetOutputString(avatarObject) + " " + VRCFPackageUtils.Version);
+            var versionLabel = new Label(VrcfDebugLine.GetOutputString(avatarObject));
             versionLabel.AddToClassList("vfVersionLabel");
-            versionLabel.pickingMode = PickingMode.Ignore;
             
             var contentWithVersion = new VisualElement();
             contentWithVersion.styleSheets.Add(VRCFuryEditorUtils.GetResource<StyleSheet>("VRCFuryStyle.uss"));
-            contentWithVersion.Add(versionLabel);
             contentWithVersion.Add(content);
+            contentWithVersion.Add(versionLabel);
             return contentWithVersion;
         }
 
@@ -99,6 +101,29 @@ namespace VF.Inspector {
             }
             
             container.Add(body);
+
+            var editingPrefab = UnityCompatUtils.IsEditingPrefab();
+
+            container.Add(VRCFuryEditorUtils.Debug(refreshElement: () => {
+                var warning = new VisualElement();
+
+                if (!editingPrefab && c.gameObject.asVf().GetComponentInSelfOrParent<VRCAvatarDescriptor>() == null) {
+                    warning.Add(VRCFuryEditorUtils.Error(
+                        "This VRCFury component is not placed on an avatar, and thus will not do anything! " +
+                        "If you intended to include this in your avatar, make sure you've placed it within your avatar's " +
+                        "object, and not just alongside it in the scene."));
+                }
+
+                var hasDelete = v is VRCFury z && z.GetAllFeatures().OfType<DeleteDuringUpload>().Any();
+                var isDeleted = EditorOnlyUtils.IsInsideEditorOnly(c.gameObject);
+                if (isDeleted && !hasDelete) {
+                    warning.Add(VRCFuryEditorUtils.Error(
+                        "This VRCFury component is placed within an object that is tagged as EditorOnly or has a vrcfury 'Delete During Upload' component, and thus will not do anything!"));
+                }
+                
+                return warning;
+            }));
+
             return container;
         }
 

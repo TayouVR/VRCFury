@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Text.RegularExpressions;
 using UnityEditor;
@@ -8,16 +9,20 @@ using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.UIElements;
 using VF.Builder;
+using VF.Component;
+using VF.Feature;
+using VF.Model;
 using VF.Model.StateAction;
 using VF.Service;
 using VF.Utils;
 using VRC.SDK3.Avatars.Components;
+using Action = VF.Model.StateAction.Action;
 using Object = UnityEngine.Object;
 
 namespace VF.Inspector {
 
 [CustomPropertyDrawer(typeof(VF.Model.StateAction.Action))]
-public class VRCFuryActionDrawer : PropertyDrawer {
+internal class VRCFuryActionDrawer : PropertyDrawer {
     public override VisualElement CreatePropertyGUI(SerializedProperty prop) {
         var el = new VisualElement();
         el.AddToClassList("vfAction");
@@ -70,7 +75,7 @@ public class VRCFuryActionDrawer : PropertyDrawer {
 
             return row;
         }, desktopActive, androidActive));
-        
+
         return col;
     }
     
@@ -97,8 +102,50 @@ public class VRCFuryActionDrawer : PropertyDrawer {
             case nameof(MaterialAction): {
                 var content = new VisualElement();
                 content.Add(Title("Material Swap"));
-                content.Add(VRCFuryEditorUtils.Prop(prop.FindPropertyRelative("renderer"), "Renderer"));
-                content.Add(VRCFuryEditorUtils.Prop(prop.FindPropertyRelative("materialIndex"), "Slot Number"));
+                var rendererProp = prop.FindPropertyRelative("renderer");
+                var indexProp = prop.FindPropertyRelative("materialIndex");
+
+                content.Add(VRCFuryEditorUtils.Prop(rendererProp, "Renderer"));
+
+                var indexField = VRCFuryEditorUtils.RefreshOnChange(() => {
+                    var renderer = rendererProp.objectReferenceValue as Renderer;
+                    if (renderer == null) {
+                        var f = new PopupField<string>(
+                            new List<string>() { "Select a renderer" },
+                            0
+                        );
+                        f.SetEnabled(false);
+                        return f;
+                    } else {
+                        var choices = Enumerable.Range(0, renderer.sharedMaterials.Length).ToList();
+                        int selectedIndex;
+                        if (indexProp.intValue >= 0 && indexProp.intValue < renderer.sharedMaterials.Length) {
+                            selectedIndex = indexProp.intValue;
+                        } else {
+                            choices.Add(indexProp.intValue);
+                            selectedIndex = choices.Count - 1;
+                        }
+
+                        string FormatLabel(int i) {
+                            if (i >= 0 && i < renderer.sharedMaterials.Length) {
+                                var mat = renderer.sharedMaterials[i];
+                                if (mat != null) return $"{i} - {mat.name}";
+                            }
+
+                            return $"{i} - ???";
+                        }
+
+                        var f = new PopupField<int>(choices, selectedIndex, FormatLabel, FormatLabel);
+                        f.RegisterValueChangedCallback(cb => {
+                            if (cb.newValue >= 0 && cb.newValue < renderer.sharedMaterials.Length) {
+                                indexProp.intValue = cb.newValue;
+                                indexProp.serializedObject.ApplyModifiedProperties();
+                            }
+                        });
+                        return f;
+                    }
+                }, rendererProp, indexProp);
+                content.Add(VRCFuryEditorUtils.Prop(prop.FindPropertyRelative("materialIndex"), "Slot", fieldOverride: indexField));
                 content.Add(VRCFuryEditorUtils.Prop(prop.FindPropertyRelative("mat"), "Material"));
                 return content;
             }
@@ -162,14 +209,16 @@ public class VRCFuryActionDrawer : PropertyDrawer {
                 content.Add(valueFloat);
                 content.Add(valueVector);
                 content.Add(valueColor);
+                
                 UpdateValueType();
 
                 void UpdateValueType() {
-                    var (_, valueType) = ActionClipService.MatPropLookup(
+                    var propName = propertyNameProp.stringValue;
+                    var (renderers, valueType) = ActionClipService.MatPropLookup(
                         affectAllMeshesProp.boolValue,
                         rendererProp.objectReferenceValue as Renderer,
                         avatarObject,
-                        propertyNameProp.stringValue
+                        propName
                     );
                     valueFloat.SetVisible(valueType != ShaderUtil.ShaderPropertyType.Color && valueType != ShaderUtil.ShaderPropertyType.Vector);
                     valueVector.SetVisible(valueType == ShaderUtil.ShaderPropertyType.Vector);

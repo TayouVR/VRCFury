@@ -4,6 +4,8 @@ using UnityEditor.Animations;
 using UnityEngine;
 using VF.Builder;
 using VF.Feature.Base;
+using VF.Injector;
+using VF.Service;
 using VF.Utils;
 using VF.Utils.Controller;
 using VRC.SDK3.Avatars.Components;
@@ -14,11 +16,13 @@ namespace VF.Feature {
      * We replace them all with a fake, short 1-second-long clip.
      * (1 second long because that's how long a state lasts in unity if no motion is set)
      */
-    public class FixEmptyMotionBuilder : FeatureBuilder {
+    internal class FixEmptyMotionBuilder : FeatureBuilder {
+        [VFAutowired] private readonly ClipFactoryService clipFactory;
+
         [FeatureBuilderAction(FeatureOrder.FixEmptyMotions)]
         public void Apply() {
             foreach (var controller in manager.GetAllUsedControllers()) {
-                var noopClip = controller.NewClip("noop");
+                var noopClip = clipFactory.NewClip("noop");
                 // If this is 0 frames (1 second) instead of 1 frame (1/60th of a second), it breaks gogoloco float
                 noopClip.SetFloatCurve(
                     EditorCurveBinding.FloatCurve("_vrcf_noop", typeof(GameObject), "m_IsActive"),
