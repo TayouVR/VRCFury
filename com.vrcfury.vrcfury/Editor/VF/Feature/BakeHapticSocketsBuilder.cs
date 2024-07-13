@@ -133,43 +133,45 @@ namespace VF.Feature {
                         hapticContacts.AddReceiver(haptics, Vector3.zero, paramPrefix + "/PenOthersNewTip", "PenOthersNewTip", 1f, new []{HapticUtils.CONTACT_PEN_MAIN}, HapticUtils.ReceiverParty.Others, usePrefix: false, localOnly:true, useHipAvoidance: socket.useHipAvoidance);
                     }
 
-                    { 
-                        if (socket.addChannelToggle) { 
-                            var param = fx.NewBool($"DPSChannelToggle {name}", synced: true); 
-                            manager.GetMenu().NewMenuToggle($"{spsOptions.GetOptionsPath()}/<b>Channels<\\/b>\n<size=20>Toggle DPS Channels/{name}", 
-                                param); 
-                            AnimationClip dpsChannel0Clip = fx.NewClip($"DPSChannel0_{name}"); 
-                            AnimationClip dpsChannel1Clip = fx.NewClip($"DPSChannel1_{name}"); 
-                            var layer = fx.NewLayer($"DPSChannelToggle {name}"); 
-                            var off = layer.NewState("Channel 0").WithAnimation(dpsChannel0Clip); 
-                            var on = layer.NewState("Channel 1").WithAnimation(dpsChannel1Clip); 
-                            var whenOn = param.IsTrue(); 
-                            off.TransitionsTo(on).When(whenOn); 
-                            on.TransitionsTo(off).When(whenOn.Not()); 
-                            dpsChannel0Clip.SetCurve(bakeRoot 
-                                .Children().First(child => child.name == "Lights") 
-                                .Children().First(child => child.name == "Front") 
-                                .GetPath(avatarObject), typeof(Light), "m_Range", new AnimationCurve(new Keyframe(0,  
-                                VRCFuryHapticSocketEditor.GetLightRange(true, VRCFuryHapticPlug.Channel.Default))) 
-                            ); 
-                            dpsChannel0Clip.SetCurve(bakeRoot 
-                                .Children().First(child => child.name == "Lights") 
-                                .Children().First(child => child.name == "Root") 
-                                .GetPath(avatarObject), typeof(Light), "m_Range", new AnimationCurve(new Keyframe(0,  
-                                    VRCFuryHapticSocketEditor.GetLightRange(false, VRCFuryHapticPlug.Channel.Default, socket.addLight))) 
-                            ); 
-                            dpsChannel1Clip.SetCurve(bakeRoot 
-                                    .Children().First(child => child.name == "Lights") 
-                                    .Children().First(child => child.name == "Front") 
-                                    .GetPath(avatarObject), typeof(Light), "m_Range", new AnimationCurve(new Keyframe(0,  
-                                    VRCFuryHapticSocketEditor.GetLightRange(true, VRCFuryHapticPlug.Channel.LegacyDPSChannel1))) 
-                            ); 
-                            dpsChannel1Clip.SetCurve(bakeRoot 
-                                    .Children().First(child => child.name == "Lights") 
-                                    .Children().First(child => child.name == "Root") 
-                                    .GetPath(avatarObject), typeof(Light), "m_Range", new AnimationCurve(new Keyframe(0,  
-                                    VRCFuryHapticSocketEditor.GetLightRange(false, VRCFuryHapticPlug.Channel.LegacyDPSChannel1, socket.addLight))) 
-                            ); 
+                    {
+                        if (socket.addChannelToggle) {
+                            var param = fx.NewBool($"DPSChannelToggle {name}", synced: true);
+                            manager.GetMenu().NewMenuToggle(
+                                $"{spsOptions.GetOptionsPath()}/<b>Channels<\\/b>\n<size=20>Toggle DPS Channels/{name}",
+                                param);
+
+                            string frontLightPath = bakeRoot.Children().First(child => child.name == "Lights")
+                                .Children().First(child => child.name == "Front").GetPath(avatarObject);
+                            string rootLightPath = bakeRoot.Children().First(child => child.name == "Lights")
+                                .Children().First(child => child.name == "Root").GetPath(avatarObject);
+                            
+                            AnimationClip dpsChannel0Clip = clipFactory.NewClip($"DPSChannel0_{name}");
+                            AnimationClip dpsChannel1Clip = clipFactory.NewClip($"DPSChannel1_{name}");
+                            dpsChannel0Clip.SetCurve(
+                                EditorCurveBinding.FloatCurve(frontLightPath, typeof(Light), "m_Range"), 
+                                new AnimationCurve(new Keyframe(0,
+                                    VRCFuryHapticSocketEditor.GetLightRange(true, VRCFuryHapticPlug.Channel.Default)))
+                            );
+                            dpsChannel0Clip.SetCurve(
+                                EditorCurveBinding.FloatCurve(rootLightPath, typeof(Light), "m_Range"), 
+                                new AnimationCurve(new Keyframe(0,
+                                    VRCFuryHapticSocketEditor.GetLightRange(false, VRCFuryHapticPlug.Channel.Default, socket.addLight)))
+                            );
+                            dpsChannel1Clip.SetCurve(
+                                EditorCurveBinding.FloatCurve(frontLightPath, typeof(Light), "m_Range"), 
+                                new AnimationCurve(new Keyframe(0, 
+                                    VRCFuryHapticSocketEditor.GetLightRange(true, VRCFuryHapticPlug.Channel.LegacyDPSChannel1)))
+                            );
+                            dpsChannel1Clip.SetCurve(
+                                EditorCurveBinding.FloatCurve(rootLightPath, typeof(Light), "m_Range"), 
+                                new AnimationCurve(new Keyframe(0, VRCFuryHapticSocketEditor.GetLightRange(false, VRCFuryHapticPlug.Channel.LegacyDPSChannel1, socket.addLight)))
+                            );
+                            var layer = fx.NewLayer($"DPSChannelToggle {name}");
+                            var off = layer.NewState("Channel 0").WithAnimation(dpsChannel0Clip);
+                            var on = layer.NewState("Channel 1").WithAnimation(dpsChannel1Clip);
+                            var whenOn = param.IsTrue();
+                            off.TransitionsTo(on).When(whenOn);
+                            on.TransitionsTo(off).When(whenOn.Not());
                         } 
                         socketRewritesToDo.Add(new SocketRewriteToDo{plugObject = socket.owner(), bakeRoot = bakeRoot, addLight = socket.addLight}); 
                     } 
