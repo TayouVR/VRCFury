@@ -35,6 +35,7 @@ namespace VF.Feature {
         [VFAutowired] private readonly DirectBlendTreeService directTree;
         [VFAutowired] private readonly UniqueHapticNamesService uniqueHapticNamesService;
         [VFAutowired] private readonly ClipFactoryService clipFactory;
+        [VFAutowired] private readonly ClipRewriteService clipRewriteService;
 
         [FeatureBuilderAction]
         public void Apply() {
@@ -428,30 +429,32 @@ namespace VF.Feature {
                     typeof(Light),
                     "m_Range"
                 );
-                foreach (var c in manager.GetAllUsedControllers()) {
-                    foreach (var clip in c.GetClips()) {
-                        foreach (var binding in clip.GetFloatBindings()) {
-                            if (binding.path == pathToSocket &&
-                                binding.propertyName == "channel") {
 
-                                AnimationCurve curveFront = clip.GetFloatCurve(binding);
-                                AnimationCurve curveRoot = clip.GetFloatCurve(binding);
-                                curveFront.keys = curveFront.keys.Select(keyframe => {
-                                    keyframe.value = VRCFuryHapticSocketEditor.GetLightRange(true,
-                                        (VRCFuryHapticPlug.Channel) keyframe.value);
-                                    return keyframe;
-                                }).ToArray();
-                                curveRoot.keys = curveRoot.keys.Select(keyframe => {
-                                    keyframe.value = VRCFuryHapticSocketEditor.GetLightRange(false,
-                                        (VRCFuryHapticPlug.Channel) keyframe.value, socketRewrites.addLight);
-                                    return keyframe;
-                                }).ToArray();
-                                clip.SetFloatCurve(rootLightRangeBinding, curveRoot);
-                                clip.SetFloatCurve(frontLightRangeBinding, curveFront);
-                            }
+                void RewriteClip(AnimationClip clip) {
+                    foreach (var (_binding,curve) in clip.GetAllCurves()) {
+                        var binding = _binding;
+                        
+                        if (binding.path == pathToSocket &&
+                            binding.propertyName == "channel") {
+
+                            AnimationCurve curveFront = curve.FloatCurve;
+                            AnimationCurve curveRoot = curve.FloatCurve;
+                            curveFront.keys = curveFront.keys.Select(keyframe => {
+                                keyframe.value = VRCFuryHapticSocketEditor.GetLightRange(true,
+                                    (VRCFuryHapticPlug.Channel) keyframe.value);
+                                return keyframe;
+                            }).ToArray();
+                            curveRoot.keys = curveRoot.keys.Select(keyframe => {
+                                keyframe.value = VRCFuryHapticSocketEditor.GetLightRange(false,
+                                    (VRCFuryHapticPlug.Channel) keyframe.value, socketRewrites.addLight);
+                                return keyframe;
+                            }).ToArray();
+                            clip.SetCurve(rootLightRangeBinding, curveRoot);
+                            clip.SetCurve(frontLightRangeBinding, curveFront);
                         }
                     }
                 }
+                clipRewriteService.ForAllClips(RewriteClip);
             }
         }
     }
