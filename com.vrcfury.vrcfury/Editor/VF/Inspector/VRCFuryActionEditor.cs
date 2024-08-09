@@ -50,7 +50,7 @@ internal class VRCFuryActionDrawer : PropertyDrawer {
                 androidActive.boolValue = false;
                 prop.serializedObject.ApplyModifiedProperties();
             }, desktopActive.boolValue ? DropdownMenuAction.Status.Checked : DropdownMenuAction.Status.Normal);
-            e.menu.AppendAction("Android Only", a => {
+            e.menu.AppendAction("Quest+Android+iOS Only", a => {
                 androidActive.boolValue = !androidActive.boolValue;
                 desktopActive.boolValue = false;
                 prop.serializedObject.ApplyModifiedProperties();
@@ -71,7 +71,7 @@ internal class VRCFuryActionDrawer : PropertyDrawer {
             }
             
             if (desktopActive.boolValue) AddFlag("Desktop Only");
-            if (androidActive.boolValue) AddFlag("Android Only");
+            if (androidActive.boolValue) AddFlag("Quest+Android+iOS Only");
 
             return row;
         }, desktopActive, androidActive));
@@ -418,7 +418,7 @@ internal class VRCFuryActionDrawer : PropertyDrawer {
                 output.Add(Title("Flipbook Builder"));
                 output.Add(VRCFuryEditorUtils.Info(
                     "This will create a clip made up of one frame per child action. This is mostly useful for" +
-                    " VRCFury Toggles with 'Use Slider Wheel' enabled, as you can put various presets in these slots" +
+                    " VRCFury Toggles with 'Use a Slider (Radial)' enabled, as you can put various presets in these slots" +
                     " and use the slider to select one of them."
                 ));
                 output.Add(VRCFuryEditorUtils.List(prop.FindPropertyRelative("pages")));
