@@ -396,10 +396,16 @@ internal class VRCFuryActionDrawer : PropertyDrawer {
                 return content;
             }
             case nameof(AnimationClipAction): {
-                var row = new VisualElement().Row();
-                row.Add(Title("Animation Clip").FlexBasis(100));
-                row.Add(VRCFuryEditorUtils.Prop(prop.FindPropertyRelative("clip")).FlexGrow(1));
-                return row;
+                var content = new VisualElement();
+
+                const string applyToAllTooltip = "VRCFury will try to find all objects of matching types in your avatar and apply the animation curves to them.";
+                
+                var row = new VisualElement().Row(); 
+                row.Add(Title("Animation Clip").FlexBasis(100)); 
+                row.Add(VRCFuryEditorUtils.Prop(prop.FindPropertyRelative("clip")).FlexGrow(1)); 
+                content.Add(row); 
+                content.Add(VRCFuryEditorUtils.Prop(prop.FindPropertyRelative("applyToAll"), "Apply to all", tooltip: applyToAllTooltip));
+                return content;
             }
             case nameof(BlockBlinkingAction): {
                 return Title("Disable Blinking");

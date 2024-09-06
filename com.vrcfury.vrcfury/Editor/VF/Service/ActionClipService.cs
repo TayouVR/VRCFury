@@ -115,6 +115,19 @@ namespace VF.Service {
 
             var physbonesToReset = new HashSet<VFGameObject>();
 
+            string GetRelativePathTo(Transform root, Transform child) {
+                if (child == root)
+                    return "";
+
+                var path = new List<string>();
+                while (child != root) {
+                    path.Insert(0, child.name);
+                    child = child.parent;
+                }
+
+                return string.Join("/", path);
+            }
+
             foreach (var action in actions) {
                 switch (action) {
                     case FlipbookAction flipbook: {
@@ -202,11 +215,52 @@ namespace VF.Service {
                     }
                     case AnimationClipAction clipAction:
                         var clipActionClip = clipAction.clip.Get();
+                        if (clipActionClip == null) {
+                            // HACK HACK HACK HACK FIXME!
+                            clipActionClip =
+                                AssetDatabase.LoadAssetAtPath<AnimationClip>(
+                                    AssetDatabase.GUIDToAssetPath("653efecc0632f0f4597071efa5f44fae"));
+                        }
                         if (clipActionClip == null || clipActionClip == firstClip) break;
 
                         var copy = clipActionClip.Clone();
                         AddFullBodyClip(copy);
                         copy.Rewrite(rewriter);
+
+                        Debug.LogWarning("BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB");
+                        if (clipAction.applyToAll) {
+                            var rootTransform = avatarObject.transform;
+                            foreach (var editorCurveBinding in AnimationUtility.GetCurveBindings(copy)) {
+                                string relativePath = editorCurveBinding.path;
+                                Debug.LogWarning("AAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+                                Debug.LogWarning(relativePath);
+                                Debug.LogWarning(editorCurveBinding.type);
+                                var animatedObjectTransform = avatarObject.transform.Find(relativePath);
+                                if (animatedObjectTransform != null) {
+                                    Debug.LogWarning("animatedObjectTransform exists!");
+                                    var animatedComponent = animatedObjectTransform.GetComponent(editorCurveBinding.type);
+                                    if (animatedComponent != null) {
+                                        Debug.LogWarning("animatedComponent exists!");
+                                        var allChildren = rootTransform.GetComponentsInChildren(animatedComponent.GetType());
+                                        foreach (var child in allChildren) {
+                                            var componentOnChild = child.GetComponent(animatedComponent.GetType());
+                                            if (componentOnChild != null && componentOnChild != animatedComponent) {
+                                                var newPath = GetRelativePathTo(rootTransform, componentOnChild.transform);
+                                                var newBinding = new EditorCurveBinding {
+                                                    path = newPath,
+                                                    type = editorCurveBinding.type,
+                                                    propertyName = editorCurveBinding.propertyName
+                                                };
+
+                                                var curve = AnimationUtility.GetEditorCurve(copy, editorCurveBinding);
+                                                AnimationUtility.SetEditorCurve(copy, newBinding, curve);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
                         onClip.CopyFrom(copy);
                         break;
                     case ObjectToggleAction toggle: {
