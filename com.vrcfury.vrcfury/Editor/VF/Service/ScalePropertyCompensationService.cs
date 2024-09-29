@@ -1,11 +1,4 @@
-using System;
 using System.Collections.Generic;
-using System.Collections.Immutable;
-using System.Linq;
-using JetBrains.Annotations;
-using UnityEditor;
-using UnityEditor.Animations;
-using UnityEngine;
 using VF.Builder;
 using VF.Injector;
 using VF.Utils;
@@ -17,9 +10,8 @@ namespace VF.Service {
      */
     [VFService]
     internal class ScalePropertyCompensationService {
-        [VFAutowired] private readonly AvatarManager manager;
         [VFAutowired] private readonly ScaleFactorService scaleFactorService;
-        [VFAutowired] private readonly DirectBlendTreeService directTree;
+        [VFAutowired] private readonly DbtLayerService dbtLayerService;
         [VFAutowired] private readonly ClipFactoryService clipFactory;
 
         public void AddScaledProp(VFGameObject scaleReference, IList<(UnityEngine.Component component, string PropertyName, float LocalValue)> properties) {
@@ -32,6 +24,9 @@ namespace VF.Service {
 
         public void AddScaledProp(VFAFloat scaleFactor, IList<(UnityEngine.Component component, string PropertyName, float LocalValue)> properties) {
             if (scaleFactor == null) return;
+
+            var directTree = dbtLayerService.Create();
+            
             var zeroClip = clipFactory.NewClip($"scaleComp_zero");
             directTree.Add(zeroClip);
 

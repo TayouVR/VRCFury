@@ -23,8 +23,8 @@ namespace VF.Service {
         [VFAutowired] private readonly ObjectMoveService mover;
         [VFAutowired] private readonly FindAnimatedTransformsService findAnimatedTransformsService;
         [VFAutowired] private readonly GlobalsService globals;
-        [VFAutowired] private readonly AvatarManager manager;
-        private VFGameObject avatarObject => manager.AvatarObject;
+        [VFAutowired] private readonly VFGameObject avatarObject;
+        [VFAutowired] private readonly ControllersService controllers;
         
         [FeatureBuilderAction(FeatureOrder.ArmatureLink)]
         public void Apply() {
@@ -39,9 +39,6 @@ namespace VF.Service {
             doNotReparent.UnionWith(anim.rotationIsAnimated.Children());
             doNotReparent.UnionWith(anim.physboneRoot.Children()); // Physbone roots are the same as rotation being animated
             doNotReparent.UnionWith(anim.physboneChild); // Physbone children can't be reparented, because they must remain as children of the physbone root
-
-            // Expand the list to include all transitive children
-            doNotReparent.UnionWith(doNotReparent.AllChildren().ToArray());
 
             var pruneCheck = new HashSet<VFGameObject>();
             var saveDebugInfo = !IsActuallyUploadingHook.Get();
@@ -80,7 +77,7 @@ namespace VF.Service {
             }
 
             // Rewrite animations that turn off parents
-            foreach (var clip in manager.GetAllUsedControllers().SelectMany(c => c.GetClips())) {
+            foreach (var clip in controllers.GetAllUsedControllers().SelectMany(c => c.GetClips())) {
                 foreach (var binding in clip.GetFloatBindings()) {
                     if (binding.type != typeof(GameObject)) continue;
                     var transform = avatarObject.Find(binding.path);
@@ -141,6 +138,8 @@ namespace VF.Service {
 
             var rootName = GetRootName(links.propMain, avatarObject);
 
+            var didNotReparent = new HashSet<VFGameObject>();
+
             // Move over all the old components / children from the old location to a new child
             foreach (var (propBone, avatarBone) in links.mergeBones) {
                 VRCFuryDebugInfo debugInfo = null;
@@ -155,6 +154,11 @@ namespace VF.Service {
                              $"Aramature link root: {links.propMain.GetPath(avatarObject, true)} -> {links.avatarMain.GetPath(avatarObject, true)}\n" +
                              $"This object: {propBone.GetPath(avatarObject, true)} -> {avatarBone.GetPath(avatarObject, true)}");
 
+                var animSources = anim.GetDebugSources(propBone);
+                if (animSources.Count > 0) {
+                    AddDebugInfo("This object is animated:\n" + string.Join("\n", animSources.OrderBy(a => a)));
+                }
+
                 bool ShouldReparent() {
                     if (propBone == links.propMain) {
                         AddDebugInfo("This object was forced to link because it is the root of the armature link");
@@ -165,11 +169,12 @@ namespace VF.Service {
                         return true;
                     }
                     if (doNotReparent.Contains(propBone)) {
-                        AddDebugInfo("This object was not linked because a parent has its transform animated or is a physbone");
-                        var animSources = anim.GetDebugSources(propBone);
-                        if (animSources.Count > 0) {
-                            AddDebugInfo(string.Join("\n", animSources.OrderBy(a => a)));
-                        }
+                        AddDebugInfo("This object was not linked because a parent object was animated or part of a physbone (check the parent's debug info)");
+                        didNotReparent.Add(propBone);
+                        return false;
+                    }
+                    if (propBone.GetSelfAndAllParents().Any(parent => didNotReparent.Contains(parent))) {
+                        AddDebugInfo("This object was not linked because a parent object was animated or part of a physbone (check the parent's debug info)");
                         return false;
                     }
                     return true;
@@ -188,9 +193,12 @@ namespace VF.Service {
                 }
 
                 // Rip out parent constraints, since they were likely there from an old pre-vrcfury merge process
-                foreach (var c in propBone.GetConstraints().Where(c => c.IsParent())) {
-                    c.Destroy();
-                    AddDebugInfo("An existing parent constraint component was removed, because it was probably a leftover from before Armature Link");
+                if (model.removeParentConstraints) {
+                    foreach (var c in propBone.GetConstraints().Where(c => c.IsParent())) {
+                        c.Destroy();
+                        AddDebugInfo(
+                            "An existing parent constraint component was removed, because it was probably a leftover from before Armature Link");
+                    }
                 }
 
                 var animatedParents = new List<VFGameObject>();
@@ -210,42 +218,60 @@ namespace VF.Service {
                 }
 
                 // Move it on over
-                var newName = $"[VF{new Random().Next(100,999)}] {propBone.name}";
-                if (propBone.name != rootName) newName += $" from {rootName}";
 
-                var addedObject = GameObjects.Create(newName, avatarBone, useTransformFrom: propBone);
-                var current = addedObject;
-
-                foreach (var a in animatedParents) {
-                    current = GameObjects.Create($"Toggle From {a.name}", current);
-                    current.active = a.active;
-                    animLink.Put(a, current);
-                    AddDebugInfo($"A toggle wrapper object was added to maintain the animated toggle of {a.name}");
-                }
-
-                var transformAnimated =
-                    anim.positionIsAnimated.Contains(propBone)
-                    || anim.rotationIsAnimated.Contains(propBone)
-                    || anim.scaleIsAnimated.Contains(propBone);
-                if (transformAnimated) {
-                    current = GameObjects.Create("Original Parent (Retained for transform animation)", current, propBone.parent);
-
-                    // In a weird edge case, sometimes people mark all their clothing bones with an initial scale of 0,
-                    // to mark them as initially "hidden". In this case, we need to make sure that the transform maintainer
-                    // doesn't just permanently set the scale to 0.
-                    if (current.localScale.x == 0 || current.localScale.y == 0 || current.localScale.z == 0) {
-                        current.localScale = Vector3.one;
+                VFGameObject addedObject;
+                if (!string.IsNullOrWhiteSpace(model.forceMergedName) && linkMode == ArmatureLink.ArmatureLinkMode.ReparentRoot) {
+                    // Special logic for force naming
+                    var exists = avatarBone.Find(model.forceMergedName);
+                    if (exists != null) {
+                        throw new Exception(
+                            $"Aramture link was asked to move an object to a destination with the forced name" +
+                            $" '{exists.GetPath(avatarObject)}', but that object already exists at the destination.");
                     }
-                    AddDebugInfo($"Detected that this object's transform is animated, so a wrapper object was added to keep its original parent transform");
-                }
+                    mover.Move(propBone, avatarBone, model.forceMergedName, defer: true);
+                    addedObject = propBone;
+                    AddDebugInfo($"Forcefully named {model.forceMergedName} by Armature Link Force Naming." +
+                                 $" Note that this may break toggles or offset animations for this object!");
+                } else {
+                    var newName = $"[VF{new Random().Next(100,999)}] {propBone.name}";
+                    if (propBone.name != rootName) newName += $" from {rootName}";
+                    addedObject = GameObjects.Create(newName, avatarBone, useTransformFrom: propBone);
+                    var current = addedObject;
 
-                mover.Move(propBone, current, "Original Object", defer: true);
+                    foreach (var a in animatedParents) {
+                        current = GameObjects.Create($"Toggle From {a.name}", current);
+                        current.active = a.active;
+                        animLink.Put(a, current);
+                        AddDebugInfo($"A toggle wrapper object was added to maintain the animated toggle of {a.name}");
+                    }
+
+                    var transformAnimated =
+                        anim.positionIsAnimated.Contains(propBone)
+                        || anim.rotationIsAnimated.Contains(propBone)
+                        || anim.scaleIsAnimated.Contains(propBone);
+                    if (transformAnimated) {
+                        current = GameObjects.Create("Original Parent (Retained for transform animation)", current, propBone.parent);
+
+                        // In a weird edge case, sometimes people mark all their clothing bones with an initial scale of 0,
+                        // to mark them as initially "hidden". In this case, we need to make sure that the transform maintainer
+                        // doesn't just permanently set the scale to 0.
+                        if (current.localScale.x == 0 || current.localScale.y == 0 || current.localScale.z == 0) {
+                            current.localScale = Vector3.one;
+                        }
+                        AddDebugInfo($"Detected that this object's transform is animated, so a wrapper object was added to keep its original parent transform");
+                    }
+
+                    mover.Move(propBone, current, "Original Object", defer: true);
+                }
                 
                 if (!keepBoneOffsets) {
                     addedObject.worldPosition = avatarBone.worldPosition;
                     addedObject.worldRotation = avatarBone.worldRotation;
                     addedObject.worldScale = avatarBone.worldScale * scalingFactor;
                     AddDebugInfo($"Keep offsets is set to NO, so this object was snapped to its parent's transform");
+                }
+                if (model.forceOneWorldScale) {
+                    addedObject.worldScale = Vector3.one;
                 }
 
                 if (ShouldReuseBone()) {
@@ -260,7 +286,7 @@ namespace VF.Service {
             foreach (var skin in avatarObject.GetComponentsInSelfAndChildren<SkinnedMeshRenderer>()) {
                 // Update skins to use bones and bind poses from the original avatar
                 if (skin.bones.Contains(fromBone.transform)) {
-                    var mesh = skin.GetMutableMesh();
+                    var mesh = skin.GetMutableMesh("Needed to change bone bind-poses for Armature Link to re-use bones on base armature");
                     if (mesh != null) {
                         mesh.bindposes = skin.bones.Zip(mesh.bindposes, (a,b) => (a,b))
                             .Select(boneAndBindPose => {

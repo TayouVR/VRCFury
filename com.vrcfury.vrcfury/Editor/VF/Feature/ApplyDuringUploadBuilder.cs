@@ -5,23 +5,22 @@ using VF.Injector;
 using VF.Inspector;
 using VF.Model.Feature;
 using VF.Service;
+using VF.Utils;
 
 namespace VF.Feature {
+    [FeatureTitle("Apply During Upload")]
     internal class ApplyDuringUploadBuilder : FeatureBuilder<ApplyDuringUpload> {
         [VFAutowired] private readonly RestingStateService restingState;
         [VFAutowired] private readonly ActionClipService actionClipService;
         
         [FeatureBuilderAction(FeatureOrder.ApplyDuringUpload)]
         public void Apply() {
-            var clip = actionClipService.LoadState("applyDuringUpload", model.action);
-            restingState.ApplyClipToRestingState(clip);
-        }
-        
-        public override string GetEditorTitle() {
-            return "Apply During Upload";
+            var clip = actionClipService.LoadStateAdv("applyDuringUpload", model.action);
+            restingState.ApplyClipToRestingState(clip.onClip.FlattenAll());
         }
 
-        public override VisualElement CreateEditor(SerializedProperty prop) {
+        [FeatureEditor]
+        public static VisualElement Editor(SerializedProperty prop) {
             var content = new VisualElement();
 
             content.Add(VRCFuryEditorUtils.Info(

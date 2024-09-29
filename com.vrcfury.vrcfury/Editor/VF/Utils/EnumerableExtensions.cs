@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
@@ -10,6 +11,19 @@ namespace VF.Utils {
                 dynamic d = e;
                 return d != null;
             });
+        }
+        
+        public static void ForEach<T>(this IEnumerable<T> source, Action<T> with) {
+            foreach (var item in source) {
+                with(item);
+            }
+        }
+
+        public static IEnumerable<IEnumerable<T>> Chunk<T>(this IEnumerable<T> source, int chunkSize) {
+            return source
+                .Select((e,i) => (e,i))
+                .GroupBy(x => x.i / chunkSize)
+                .Select(g => g.Select(x => x.e));
         }
     }
 }

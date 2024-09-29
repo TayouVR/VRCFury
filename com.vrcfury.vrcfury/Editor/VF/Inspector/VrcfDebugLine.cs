@@ -22,7 +22,7 @@ namespace VF.Inspector {
 
             IEnumerable<VRCFury> vrcfComponents;
             if (avatarObject == null) {
-                vrcfComponents = Object.FindObjectsOfType<VRCFury>();
+                vrcfComponents = Resources.FindObjectsOfTypeAll<VRCFury>();
             } else {
                 vrcfComponents = avatarObject.GetComponentsInSelfAndChildren<VRCFury>();
             }
@@ -57,6 +57,10 @@ namespace VF.Inspector {
 
             if (!ConstrainedProportionsMenuItem.Get()) {
                 output += "C";
+            }
+
+            if (!AutoUpgradeConstraintsMenuItem.Get()) {
+                output += "A";
             }
 
             if (!string.IsNullOrEmpty(AssetDatabase.GUIDToAssetPath("0ad731f6b84696142a169af045691c7b"))

@@ -1,9 +1,24 @@
-﻿using System.Text.RegularExpressions;
+﻿using System.Collections.Generic;
+using System.Text.RegularExpressions;
+using JetBrains.Annotations;
 using UnityEditor;
 using UnityEngine;
 
 namespace VF.Utils {
     internal static class VrcfObjectCloner {
+        private static readonly Dictionary<Object, Object> cloneOriginals
+            = new Dictionary<Object, Object>();
+
+        [InitializeOnLoadMethod]
+        private static void Init() {
+            EditorApplication.update += () => cloneOriginals.Clear();
+        }
+
+        [CanBeNull]
+        public static T GetOriginal<T>(T clone) where T : Object {
+            return cloneOriginals.TryGetValue(clone, out var original) ? original as T : null;
+        }
+
         public static T Clone<T>(T original) where T : Object {
             // For materials and mats, we only make a clone once, and then reuse that clone for the rest of the build
             // to avoid making copies over and over
@@ -18,7 +33,7 @@ namespace VF.Utils {
             }
 
             T copy;
-            if (original is Material || original is Mesh || original is Texture2D) {
+            if (original is Material || original is Mesh || original is Texture2D || original is AudioClip) {
                 if (original is Texture2D t && !t.isReadable) {
                     t.ForceReadable();
                     copy = Object.Instantiate(original);
@@ -49,6 +64,8 @@ namespace VF.Utils {
                     copyMat.SetOverrideTag("thry_rename_suffix", Regex.Replace(original.name, "[^a-zA-Z0-9_]", ""));
                 }
             }
+
+            cloneOriginals[copy] = original;
             return copy;
         }
     }

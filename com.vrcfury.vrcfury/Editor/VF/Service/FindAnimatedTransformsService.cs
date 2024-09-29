@@ -10,7 +10,8 @@ using VRC.Dynamics;
 namespace VF.Service {
     [VFService]
     internal class FindAnimatedTransformsService {
-        [VFAutowired] private readonly AvatarManager manager;
+        [VFAutowired] private readonly ControllersService controllers;
+        [VFAutowired] private readonly VFGameObject avatarObject;
         
         public class AnimatedTransforms {
             public readonly HashSet<VFGameObject> scaleIsAnimated = new HashSet<VFGameObject>();
@@ -19,21 +20,19 @@ namespace VF.Service {
             public readonly HashSet<VFGameObject> physboneRoot = new HashSet<VFGameObject>();
             public readonly HashSet<VFGameObject> physboneChild = new HashSet<VFGameObject>();
             public readonly HashSet<VFGameObject> activated = new HashSet<VFGameObject>();
-            private readonly Dictionary<VFGameObject, List<string>> debugSources = new Dictionary<VFGameObject, List<string>>();
+            private readonly VFMultimapSet<VFGameObject, string> debugSources = new VFMultimapSet<VFGameObject, string>();
 
             public void AddDebugSource(VFGameObject t, string source) {
-                if (debugSources.TryGetValue(t, out var list)) list.Add(source);
-                else debugSources[t] = new List<string> { source };
+                debugSources.Put(t,source);
             }
 
-            public IList<string> GetDebugSources(VFGameObject t) {
-                return debugSources.TryGetValue(t, out var output) ? output : new List<string>();
+            public ICollection<string> GetDebugSources(VFGameObject t) {
+                return debugSources.Get(t);
             }
         }
 
         public AnimatedTransforms Find() {
             var output = new AnimatedTransforms();
-            var avatarObject = manager.AvatarObject;
             
             // Physbones
             foreach (var physBone in avatarObject.GetComponentsInSelfAndChildren<VRCPhysBoneBase>()) {
@@ -59,7 +58,7 @@ namespace VF.Service {
             }
 
             // Animation clips
-            foreach (var clip in manager.GetAllUsedControllers().SelectMany(c => c.GetClips())) {
+            foreach (var clip in controllers.GetAllUsedControllers().SelectMany(c => c.GetClips())) {
                 foreach (var binding in clip.GetAllBindings()) {
                     if (binding.type == typeof(Transform)) {
                         var transform = avatarObject.Find(binding.path);

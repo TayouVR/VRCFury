@@ -7,7 +7,7 @@ using VF.Model.StateAction;
 
 namespace VF.Component {
     [AddComponentMenu("VRCFury/SPS Plug (VRCFury)")]
-    public class VRCFuryHapticPlug : VRCFuryComponent {
+    class VRCFuryHapticPlug : VRCFuryComponent {
         public bool autoRenderer = true;
         public bool autoPosition = true;
         public bool autoLength = true;
@@ -50,7 +50,7 @@ namespace VF.Component {
             public float startDistance = 1;
             public float endDistance;
             public bool enableSelf;
-            public float smoothingSeconds = 0.25f;
+            public float smoothingSeconds = 0;
             [Obsolete] public float smoothing;
         }
 
@@ -119,13 +119,13 @@ namespace VF.Component {
         public override int GetLatestVersion() {
             return 10;
         }
-
-        /// <summary>
-        /// Light Channels available
-        /// </summary>
-        public enum Channel {
-            Default = 0,
-            LegacyDPSChannel1 = 1
-        }
     }
+}
+
+/// <summary>
+/// Light Channels available
+/// </summary>
+public enum Channel {
+    Default = 0,
+    LegacyDPSChannel1 = 1
 }

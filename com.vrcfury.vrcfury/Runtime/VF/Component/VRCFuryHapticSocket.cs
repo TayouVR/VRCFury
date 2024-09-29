@@ -5,8 +5,7 @@ using VF.Model;
 
 namespace VF.Component {
     [AddComponentMenu("VRCFury/SPS Socket (VRCFury)")]
-    // Temporarily public for SPS Configurator
-    public class VRCFuryHapticSocket : VRCFuryComponent {
+    internal class VRCFuryHapticSocket : VRCFuryComponent {
         public enum AddLight {
             None,
             Hole,
@@ -31,7 +30,7 @@ namespace VF.Component {
         public bool enableAuto = true;
         public Vector3 position;
         public Vector3 rotation;
-        public VRCFuryHapticPlug.Channel channel = VRCFuryHapticPlug.Channel.Default;
+        public Channel channel = Channel.Default;
         public bool addChannelToggle = false;
         [NonSerialized] public bool sendersOnly = false;
         
@@ -54,7 +53,6 @@ namespace VF.Component {
         
         [Serializable]
         [Obsolete]
-        // Named DepthAction because changing the name breaks SPS Configurator
         public class DepthAction {
             [Obsolete] public State state;
             [Obsolete] public float startDistance = 0;
@@ -78,7 +76,7 @@ namespace VF.Component {
             public Vector2 range = new Vector2(-0.25f, 0);
             public DepthActionUnits units = DepthActionUnits.Meters;
             public bool enableSelf;
-            public float smoothingSeconds = 0.1f;
+            public float smoothingSeconds = 0;
             public bool reverseClip = false;
         }
 

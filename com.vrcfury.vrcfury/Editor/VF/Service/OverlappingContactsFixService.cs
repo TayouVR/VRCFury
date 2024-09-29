@@ -18,10 +18,10 @@ namespace VF.Service {
      */
     [VFService]
     internal class OverlappingContactsFixService {
-        [VFAutowired] private readonly AvatarManager manager;
-        private VFGameObject avatarObject => manager.AvatarObject;
-        [VFAutowired] private readonly DirectBlendTreeService directTree;
-        [VFAutowired] private readonly MathService math;
+        [VFAutowired] private readonly ControllersService controllers;
+        private ControllerManager fx => controllers.GetFx();
+        [VFAutowired] private readonly VFGameObject avatarObject;
+        [VFAutowired] private readonly DbtLayerService directTreeService;
         [VFAutowired] private readonly ClipFactoryService clipFactory;
 
         private bool activate = false;
@@ -30,34 +30,35 @@ namespace VF.Service {
             activate = true;
         }
         
-        [FeatureBuilderAction(FeatureOrder.FixTouchingContacts)]
+        [FeatureBuilderAction(FeatureOrder.ForceStateInAnimator)]
         public void Fix() {
             if (!activate) return;
 
             var allOffClip = clipFactory.NewClip("AllReceiversOff");
             foreach (var r in avatarObject.GetComponentsInSelfAndChildren<VRCContactReceiver>()) {
-                allOffClip.SetCurve(r, "m_Enabled", 0);
+                allOffClip.SetEnabled(r, false);
             }
 
-            var counter = math.MakeAap("counter");
+            var directTree = directTreeService.Create();
+            var blendtreeMath = directTreeService.GetMath(directTree);
+            var counter = fx.MakeAap("counter");
 
-            var counterSetToZero = math.MakeSetter(counter, 0);
-            var counterAddOne = clipFactory.NewDBT("addToCounter");
-            var counterEqualsOne = clipFactory.NewClip("counter=1");
-            counterEqualsOne.SetAap(counter, 1);
-            counterAddOne.Add(manager.GetFx().One(), counterEqualsOne);
+            var counterSetToZero = counter.MakeSetter(0);
+            var counterAddOne = VFBlendTreeDirect.Create("addToCounter");
+            var counterEqualsOne = counter.MakeSetter(1);
+            counterAddOne.Add(counterEqualsOne);
             counterAddOne.Add(counter, counterEqualsOne);
 
-            var scaleFactor = manager.GetFx().NewFloat("ScaleFactor", usePrefix: false);
-            var scaleFactorBuffered = math.Buffer(scaleFactor);
-            var scaleFactorDiff = math.Add("ScaleFactorDiff", (scaleFactor, 1), (scaleFactorBuffered, -1));
+            var scaleFactor = fx.NewFloat("ScaleFactor", usePrefix: false);
+            var scaleFactorBuffered = blendtreeMath.Buffer(scaleFactor);
+            var scaleFactorDiff = blendtreeMath.Add("ScaleFactorDiff", (scaleFactor, 1), (scaleFactorBuffered, -1));
 
             directTree.Add(
-                math.Not(math.Equals(scaleFactorDiff, 0f))
+                BlendtreeMath.Not(BlendtreeMath.Equals(scaleFactorDiff, 0f))
                 .create(counterSetToZero, counterAddOne)
             );
 
-            directTree.Add(math.LessThan(counter, 10).create(allOffClip, null));
+            directTree.Add(BlendtreeMath.LessThan(counter, 10).create(allOffClip, null));
         }
     }
 }
