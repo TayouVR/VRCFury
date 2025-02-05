@@ -274,18 +274,21 @@ namespace VF.Inspector {
             if (spsChannel != Channel.Default && spsChannel != Channel.LegacyDPSChannel1)
                 throw new NotImplementedException(); // remove this if when implementing other channels
             float lightRange;
+            
+            float extraSpsPlusRange = 0.0002f;
+            bool useSpsPlus = false;
 
             if (isFront) {
-                lightRange = spsChannel == Channel.Default ? 0.4502f : 0.4602f;
+                lightRange = spsChannel == Channel.Default ? 0.45f : 0.46f;
             } else {
                 if (spsChannel == Channel.Default) {
-                    lightRange = lightType == VRCFuryHapticSocket.AddLight.Ring || lightType == VRCFuryHapticSocket.AddLight.RingOneWay ? 0.4202f : 0.4102f;
+                    lightRange = lightType == VRCFuryHapticSocket.AddLight.Ring || lightType == VRCFuryHapticSocket.AddLight.RingOneWay ? 0.42f : 0.41f;
                 } else {
-                    lightRange = lightType == VRCFuryHapticSocket.AddLight.Ring || lightType == VRCFuryHapticSocket.AddLight.RingOneWay ? 0.4402f : 0.4302f;
+                    lightRange = lightType == VRCFuryHapticSocket.AddLight.Ring || lightType == VRCFuryHapticSocket.AddLight.RingOneWay ? 0.44f : 0.43f;
                 }
             }
                     
-            return lightRange;
+            return useSpsPlus ? lightRange + extraSpsPlusRange : lightRange;
         }
 
         [CanBeNull]
