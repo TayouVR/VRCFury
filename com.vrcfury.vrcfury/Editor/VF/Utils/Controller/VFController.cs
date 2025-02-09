@@ -21,7 +21,7 @@ namespace VF.Utils.Controller {
     
         public static implicit operator VFController(AnimatorController d) => new VFController(d);
         public static implicit operator AnimatorController(VFController d) => d?.ctrl;
-        public static implicit operator bool(VFController d) => d?.ctrl;
+        public static implicit operator bool(VFController d) => d?.ctrl != null;
         public static bool operator ==(VFController a, VFController b) => a?.Equals(b) ?? b?.Equals(null) ?? true;
         public static bool operator !=(VFController a, VFController b) => !(a == b);
         public override bool Equals(object other) {
@@ -433,12 +433,11 @@ namespace VF.Utils.Controller {
             }
 
             // Transitions
-            foreach (var transition in new AnimatorIterator.Transitions().From(affectsLayers)) {
-                transition.RewriteConditions(cond => {
+            foreach (var layer in affectsLayers) {
+                AnimatorIterator.RewriteConditions(layer, cond => {
                     cond.parameter = RewriteParamName(cond.parameter);
                     return cond;
                 });
-                VRCFuryEditorUtils.MarkDirty(transition);
             }
         }
     }

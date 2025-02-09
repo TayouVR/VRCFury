@@ -100,11 +100,11 @@ namespace VF.Hooks {
                     () => {
                         var failureMsg = menuItem.builderType.GetCustomAttribute<FeatureFailWhenAddedAttribute>()?.Message;
                         if (failureMsg != null) {
-                            EditorUtility.DisplayDialog($"Error adding {menuItem.title}", failureMsg, "Ok");
+                            DialogUtils.DisplayDialog($"Error adding {menuItem.title}", failureMsg, "Ok");
                             return;
                         }
                         if (menuItem.warning != null) {
-                            EditorUtility.DisplayDialog("VRCFury Notice", menuItem.warning, "Ok");
+                            DialogUtils.DisplayDialog("VRCFury Notice", menuItem.warning, "Ok");
                         }
                         foreach (var obj in Selection.gameObjects) {
                             if (obj == null) continue;
@@ -112,6 +112,7 @@ namespace VF.Hooks {
                             if (modelInst == null) continue;
                             if (modelInst is ArmatureLink al) {
                                 al.propBone = ArmatureLinkBuilder.GuessLinkFrom(obj);
+                                ArmatureLinkBuilder.UpdateOnLinkFromChange(al, null, al.propBone);
                             }
 
                             var c = Undo.AddComponent<VRCFury>(obj);

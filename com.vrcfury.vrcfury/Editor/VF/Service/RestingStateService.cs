@@ -60,7 +60,7 @@ namespace VF.Service {
             pendingClips.Clear();
             stored.Clear();
             
-            Debug.Log("Resting state report:\n" + string.Join("\n", debugLog));
+            Debug.Log("Resting state report:\n" + debugLog.Join('\n'));
         }
 
         [FeatureBuilderAction(FeatureOrder.ApplyImplicitRestingStates)]
@@ -74,19 +74,19 @@ namespace VF.Service {
                             return UnitySerializationUtils.IterateResult.Skip;
                         }
                         if (visit.value is State action) {
-                            var built = actionClipService.LoadStateAdv("", action);
-                            ApplyClipToRestingState(built.implicitRestingClip, owner: $"{component.GetType().Name} on {path}");
+                            var built = actionClipService.BuildOff(action);
+                            ApplyClipToRestingState(built, owner: $"{component.GetType().Name} on {path}");
                         }
                         if (visit.value is FullController fc) {
                             if (!string.IsNullOrWhiteSpace(fc.toggleParam)) {
                                 var rootObj = component.owner();
                                 if (fc.rootObjOverride != null) rootObj = fc.rootObjOverride;
-                                var built = actionClipService.LoadStateAdv("", new State {
+                                var built = actionClipService.BuildOff(new State {
                                     actions = {
                                         new ObjectToggleAction { obj = rootObj, mode = ObjectToggleAction.Mode.TurnOn }
                                     }
                                 });
-                                ApplyClipToRestingState(built.implicitRestingClip, owner: owner);
+                                ApplyClipToRestingState(built, owner: owner);
                             }
                         }
                         return UnitySerializationUtils.IterateResult.Continue;

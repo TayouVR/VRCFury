@@ -184,7 +184,7 @@ namespace VF.Feature {
 
             Motion restingClip = null;
             if (weight != null) {
-                var builtAction = actionClipService.LoadStateAdv(onName, action, null, ActionClipService.MotionTimeMode.Always);
+                var builtAction = actionClipService.LoadStateAdv(onName, action, motionTime: ActionClipService.MotionTimeMode.Always);
                 inState = onState = layer.NewState(onName);
                 onState.WithAnimation(builtAction.onClip).MotionTime(weight);
                 onState.TransitionsToExit().When(onCase.Not());
@@ -621,7 +621,9 @@ namespace VF.Feature {
             ));
 
             content.Add(VRCFuryEditorUtils.Debug(refreshElement: () => {
-                var baseObject = avatarObject != null ? avatarObject : componentObject.root;
+                var baseObject = avatarObject != null ? avatarObject : componentObject.NullSafe()?.root;
+                // componentObject can be null when this method is called while the editor is being torn down (leaving prefab mode)
+                if (baseObject == null) return new VisualElement();
 
                 var turnsOff = model.state.actions
                     .OfType<ObjectToggleAction>()

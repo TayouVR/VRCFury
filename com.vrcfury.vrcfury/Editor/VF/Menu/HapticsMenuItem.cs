@@ -1,8 +1,10 @@
+using System.Linq;
 using UnityEditor;
 using UnityEngine;
 using VF.Builder;
 using VF.Component;
 using VF.Inspector;
+using VF.Utils;
 
 namespace VF.Menu {
     internal static class HapticsMenuItem {
@@ -24,10 +26,10 @@ namespace VF.Menu {
             Selection.SetActiveObjectWithContext(newObj, newObj);
             //SceneView.FrameLastActiveSceneView();
             
-            EditorUtility.DisplayDialog(DialogTitle,
+            DialogUtils.DisplayDialog(DialogTitle,
                 $"{(plug ? "Plug" : "Socket")} created!\n\nDon't forget to attach it to an appropriate bone on your avatar and rotate it so it faces the correct direction!", "Ok");
             
-            var sv = EditorWindow.GetWindow<SceneView>();
+            var sv = EditorWindowFinder.GetWindows<SceneView>().FirstOrDefault();
             if (sv != null) sv.drawGizmos = true;
         }
     }

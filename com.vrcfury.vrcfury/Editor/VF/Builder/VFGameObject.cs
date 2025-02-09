@@ -19,14 +19,14 @@ namespace VF.Builder {
             _gameObject = gameObject;
         }
 
-        public GameObject gameObject => _gameObject;
-        public Transform transform => _gameObject == null ? null : _gameObject.transform;
+        private GameObject gameObject => _gameObject;
+        private Transform transform => _gameObject == null ? null : _gameObject.transform;
         public static implicit operator VFGameObject(GameObject d) => d == null ? null : new VFGameObject(d);
         public static implicit operator VFGameObject(Transform d) => d == null ? null : new VFGameObject(d.gameObject);
         public static implicit operator GameObject(VFGameObject d) => d?.gameObject;
         public static implicit operator Object(VFGameObject d) => d?.gameObject;
         public static implicit operator Transform(VFGameObject d) => d?.transform;
-        public static implicit operator bool(VFGameObject d) => d?.gameObject;
+        public static implicit operator bool(VFGameObject d) => d?.gameObject != null;
         public static bool operator ==(VFGameObject a, VFGameObject b) => a?.Equals(b) ?? b?.Equals(null) ?? true;
         public static bool operator !=(VFGameObject a, VFGameObject b) => !(a == b);
         public override bool Equals(object other) {
@@ -294,6 +294,10 @@ namespace VF.Builder {
 
         public int GetInstanceID() {
             return _gameObject.GetInstanceID();
+        }
+
+        public bool HasTag(string tag) {
+            return gameObject.CompareTag(tag);
         }
     }
 }

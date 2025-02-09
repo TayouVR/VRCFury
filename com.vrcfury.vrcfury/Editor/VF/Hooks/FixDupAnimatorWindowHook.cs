@@ -30,15 +30,15 @@ namespace VF.Hooks {
         private static readonly PropertyInfo AnimatorControllerTool_animatorController = AnimatorControllerTool?
             .GetProperty("animatorController", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
         
-        private static AnimatorController GetAnimatorController() {
+        public static AnimatorController GetPreviewedAnimatorController() {
             if (AnimatorControllerTool == null || AnimatorControllerTool_animatorController == null) return null;
             var tool = Resources.FindObjectsOfTypeAll(AnimatorControllerTool).FirstOrDefault();
             if (tool == null) return null;
             return AnimatorControllerTool_animatorController.GetValue(tool) as AnimatorController;
         }
     
-        static bool Prefix(ref AnimatorController __result) {
-            __result = GetAnimatorController();
+        private static bool Prefix(ref AnimatorController __result) {
+            __result = GetPreviewedAnimatorController();
             return false;
         }
     }

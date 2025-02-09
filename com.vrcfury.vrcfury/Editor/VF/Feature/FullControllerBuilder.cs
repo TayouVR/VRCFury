@@ -42,6 +42,7 @@ namespace VF.Feature {
         [VFAutowired] private readonly ControllersService controllers;
 
         public string injectSpsDepthParam = null;
+        public string injectSpsVelocityParam = null;
 
         [FeatureBuilderAction(FeatureOrder.FullController)]
         public void Apply() {
@@ -64,7 +65,7 @@ namespace VF.Feature {
                 }
             }
 
-            var toMerge = new List<(VRCAvatarDescriptor.AnimLayerType, VFController)>();
+            var toMerge = new List<(VRCAvatarDescriptor.AnimLayerType, VFController, RuntimeAnimatorController)>();
             foreach (var c in model.controllers) {
                 var source = c.controller.Get();
                 if (source == null) {
@@ -73,16 +74,16 @@ namespace VF.Feature {
                 }
                 var copy = VFController.CopyAndLoadController(source, c.type);
                 if (copy) {
-                    toMerge.Add((c.type, copy));
+                    toMerge.Add((c.type, copy, source));
                 }
             }
 
             // Record the offsets so we can fix them later
-            animatorLayerControlManager.RegisterControllerSet(toMerge);
+            animatorLayerControlManager.RegisterControllerSet(toMerge.Select(pair => (pair.Item1, pair.Item2)));
 
-            foreach (var (type, from) in toMerge) {
+            foreach (var (type, from, source) in toMerge) {
                 var targetController = controllers.GetController(type);
-                Merge(from, targetController);
+                Merge(from, targetController, source);
             }
 
             foreach (var m in model.menus) {
@@ -118,10 +119,10 @@ namespace VF.Feature {
 
             if (missingAssets.Count > 0) {
                 if (model.allowMissingAssets) {
-                    var list = string.Join(", ", missingAssets.Select(w => VrcfObjectId.FromId(w.id).Pretty()));
+                    var list = missingAssets.Select(w => VrcfObjectId.FromId(w.id).Pretty()).Join(", ");
                     Debug.LogWarning($"Missing Assets: {list}");
                 } else {
-                    var list = string.Join("\n", missingAssets.Select(w => VrcfObjectId.FromId(w.id).Pretty()));
+                    var list = missingAssets.Select(w => VrcfObjectId.FromId(w.id).Pretty()).Join("\n");
                     throw new Exception(
                         "You're missing some files needed for this VRCFury asset. " +
                         "Are you sure you've imported all the packages needed? Here are the files that are missing:\n\n" +
@@ -135,7 +136,7 @@ namespace VF.Feature {
             void CheckParam(string param, IList<string> path) {
                 if (string.IsNullOrEmpty(param)) return;
                 if (paramz.GetParam(RewriteParamName(param)) != null) return;
-                failedParams.Add($"{param} (used by {string.Join("/", path)})");
+                failedParams.Add($"{param} (used by {path.Join('/')})");
             }
             menu.ForEachMenu(ForEachItem: (item, path) => {
                 CheckParam(item.parameter?.name, path);
@@ -149,7 +150,7 @@ namespace VF.Feature {
             if (failedParams.Count > 0) {
                 throw new Exception(
                     "The merged menu uses parameters that aren't in the merged parameters file:\n\n" +
-                    string.Join("\n", failedParams));
+                    failedParams.Join('\n'));
             }
         }
 
@@ -189,16 +190,22 @@ namespace VF.Feature {
         private string RewriteParamNameUncached(string name) {
             if (string.IsNullOrWhiteSpace(name)) return name;
             if (VRChatGlobalParams.Contains(name)) return name;
-            if (name == model.injectSpsDepthParam) {
+            if (!string.IsNullOrEmpty(model.injectSpsDepthParam) && name == model.injectSpsDepthParam) {
                 if (injectSpsDepthParam == null) {
                     injectSpsDepthParam = controllers.MakeUniqueParamName(name);
                 }
                 return injectSpsDepthParam;
             }
+            if (!string.IsNullOrEmpty(model.injectSpsVelocityParam) && name == model.injectSpsVelocityParam) {
+                if (injectSpsVelocityParam == null) {
+                    injectSpsVelocityParam = controllers.MakeUniqueParamName(name);
+                }
+                return injectSpsVelocityParam;
+            }
             if (model.allNonsyncedAreGlobal) {
                 var synced = model.prms.Any(p => {
                     var prms = p.parameters.Get();
-                    return prms && prms.parameters.Any(param => param.name == name);
+                    return prms != null && prms.parameters.Any(param => param.name == name);
                 });
                 if (!synced) return name;
             }
@@ -250,7 +257,7 @@ namespace VF.Feature {
             return path;
         }
 
-        private void Merge(VFController from, ControllerManager toMain) {
+        private void Merge(VFController from, ControllerManager toMain, RuntimeAnimatorController source) {
             var to = toMain.GetRaw();
             var type = toMain.GetType();
 
@@ -278,10 +285,72 @@ namespace VF.Feature {
             from.RewriteParameters(RewriteParamName);
 
             var myLayers = from.GetLayers();
+            
+            // Rip out default Action if this controller handles everything
+            if (type == VRCAvatarDescriptor.AnimLayerType.Action) {
+                var menuUsesVrcEmote = false;
+                avatarMenu.GetRaw().ForEachMenu(ForEachItem: (item,path) => {
+                    if (item?.parameter?.name == "VRCEmote") {
+                        menuUsesVrcEmote = true;
+                    }
+                    return VRCExpressionsMenuExtensions.ForEachMenuItemResult.Continue;
+                });
+                var transitionParams = from.GetLayers()
+                    .SelectMany(l => new AnimatorIterator.Transitions().From(l))
+                    .SelectMany(transition => transition.conditions)
+                    .Select(condition => condition.parameter)
+                    .ToImmutableHashSet();
+                var afkCustomized = transitionParams.Contains("AFK");
+                var vrcEmoteCustomized = transitionParams.Contains("VRCEmote");
+                if (afkCustomized && (vrcEmoteCustomized || !menuUsesVrcEmote)) {
+                    foreach (var layer in toMain.GetLayers()) {
+                        if (toMain.GetLayerOwner(layer) == LayerSourceService.VrcDefaultSource) {
+                            layer.Remove();
+                        }
+                    }
+                }
+            }
+            
+            // Fail if trying to merge a controller that is on the avatar descriptor
+            foreach (var layer in toMain.GetLayers()) {
+                if (toMain.GetLayerOwner(layer) == LayerSourceService.AvatarDescriptorSource &&
+                    layerSourceService.GetSourceFile(layer) == source) {
+                    if (AssetDatabase.GetAssetPath(source)?.ToLower().Contains("goloco") ?? false) {
+                        throw new Exception(
+                            "You've installed GogoLoco using VRCFury, but your avatar descriptor also contains GogoLoco controllers." +
+                            " Make sure your Avatar Descriptor does not contain any gogoloco files."
+                        );
+                    } else {
+                        throw new Exception(
+                            "This Full Controller component is setup to merge the same controller file that is already on your avatar descriptor. VRCFury Full Controller components" +
+                            " should only contain the things you want to ADD to your avatar. Do not include your avatar's base files."
+                        );
+                    }
+                }
+            }
+
+            // Rip out the base controller if it's locomotion
+            if (type == VRCAvatarDescriptor.AnimLayerType.Base || type == VRCAvatarDescriptor.AnimLayerType.TPose ||
+                type == VRCAvatarDescriptor.AnimLayerType.IKPose || type == VRCAvatarDescriptor.AnimLayerType.Sitting) {
+                foreach (var layer in toMain.GetLayers()) {
+                    var owner = toMain.GetLayerOwner(layer);
+                    if (owner == LayerSourceService.AvatarDescriptorSource || owner == LayerSourceService.VrcDefaultSource) {
+                        layer.Remove();
+                    } else {
+                        throw new VRCFBuilderException(
+                            $"Your avatar contains multiple locomotion implementations ({VRCFEnumUtils.GetName(type)}).\n\n" +
+                            "You can only use one of these:\n" +
+                            $"{globals.currentFeatureNameProvider()}\n" +
+                            layerSourceService.GetSource(layer)
+                        );
+                    }
+                }
+            }
 
             // Merge Layers
             foreach (var layer in from.GetLayers()) {
                 layerSourceService.SetSourceToCurrent(layer);
+                layerSourceService.SetSourceFile(layer, source);
             }
             toMain.TakeOwnershipOf(from);
 
@@ -524,6 +593,7 @@ namespace VF.Feature {
             adv.Add(VRCFuryEditorUtils.Prop(prop.FindPropertyRelative("allNonsyncedAreGlobal"), "(Deprecated) Make all unsynced params global"));
             adv.Add(VRCFuryEditorUtils.Prop(prop.FindPropertyRelative("allowMissingAssets"), "(Deprecated) Don't fail if assets are missing"));
             adv.Add(VRCFuryEditorUtils.Prop(prop.FindPropertyRelative("injectSpsDepthParam"), "Inject nearest SPS depth (in plug lengths) as a parameter"));
+            adv.Add(VRCFuryEditorUtils.Prop(prop.FindPropertyRelative("injectSpsVelocityParam"), "Inject nearest SPS velocity (in plug lengths / sec) as a parameter"));
 
             content.Add(adv);
 
@@ -539,7 +609,19 @@ namespace VF.Feature {
                 var usesWdOff = controllers
                     .SelectMany(c => new AnimatorIterator.States().From(c))
                     .Any(state => !state.writeDefaultValues);
-                var warnings = VrcfAnimationDebugInfo.BuildDebugInfo(controllers, avatarObject, baseObject, path => RewritePath(model, path), suggestPathRewrites: true).ToList();
+                var rewrites = prop.FindPropertyRelative("rewriteBindings");
+                var warnings = VrcfAnimationDebugInfo.BuildDebugInfo(
+                    controllers,
+                    avatarObject,
+                    baseObject,
+                    path => RewritePath(model, path),
+                    addPathRewrite: path => {
+                        VRCFuryEditorUtils.AddToList(rewrites, entry => {
+                            entry.FindPropertyRelative("from").stringValue = path;
+                            entry.FindPropertyRelative("to").stringValue = "";
+                        });
+                    }
+                ).ToList();
                 if (usesWdOff) {
                     warnings.Add(VRCFuryEditorUtils.Warn(
                         "This controller uses WD off!" +
@@ -558,8 +640,10 @@ namespace VF.Feature {
             return content;
         }
 
+        // https://creators.vrchat.com/avatars/animator-parameters/
         public static readonly HashSet<string> VRChatGlobalParams = new HashSet<string> {
             "IsLocal",
+            "PreviewMode",
             "Viseme",
             "Voice",
             "GestureLeft",
@@ -580,7 +664,7 @@ namespace VF.Feature {
             "MuteSelf",
             "InStation",
             "Earmuffs",
-
+            "IsOnFriendsList",
             "AvatarVersion",
 
             "Supine",
@@ -592,7 +676,8 @@ namespace VF.Feature {
             "EyeHeightAsMeters",
             "EyeHeightAsPercent",
             
-            "IsOnFriendsList",
+            "IsAnimatorEnabled",
+            
         };
     }
 

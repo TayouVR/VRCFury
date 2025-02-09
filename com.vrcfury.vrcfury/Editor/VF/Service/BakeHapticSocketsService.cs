@@ -35,6 +35,7 @@ namespace VF.Service {
         [VFAutowired] private readonly ScaleFactorService scaleFactorService;
         [VFAutowired] private readonly VRCAvatarDescriptor avatar;
         [VFAutowired] private readonly ControllersService controllers;
+        [VFAutowired] private readonly FrameTimeService frameTimeService;
         [VFAutowired] private readonly ClipRewriteService clipRewriteService;
         private ControllerManager fx => controllers.GetFx();
         [VFAutowired] private readonly MenuService menuService;
@@ -55,8 +56,8 @@ namespace VF.Service {
                 menu.NewMenuToggle($"{spsOptions.GetOptionsPath()}/<b>Auto Mode<\\/b>\n<size=20>Activates hole nearest to a VRCFury plug", autoOn);
                 autoOnClip = clipFactory.NewClip("Enable SPS Auto Contacts");
                 var directTree = directTreeService.Create($"Auto Mode Toggle");
-                directTree.Add(BlendtreeMath.And(
-                    BlendtreeMath.GreaterThan(fx.IsLocal().AsFloat(), 0, name: "SPS: Auto Contacts"),
+                directTree.Add(
+                    BlendtreeMath.GreaterThan(fx.IsLocal().AsFloat(), 0, name: "SPS: Auto Contacts").And(
                     BlendtreeMath.GreaterThan(autoOn.AsFloat(), 0, name: "When Local")
                 ).create(autoOnClip, null));
             }
@@ -273,7 +274,7 @@ namespace VF.Service {
                         animObjects.Add(scaleFactorContact2);
                         var directTree = directTreeService.Create($"{name} - Depth Calculations");
                         var math = directTreeService.GetMath(directTree);
-                        return new SpsDepthContacts(animRoot, name, hapticContacts, directTree, math, fx, socket.useHipAvoidance, scaleFactor);
+                        return new SpsDepthContacts(animRoot, name, hapticContacts, directTree, math, fx, frameTimeService, socket.useHipAvoidance, scaleFactor);
                     });
 
                     if (socket.depthActions2.Count > 0) {
@@ -292,13 +293,23 @@ namespace VF.Service {
                         .Select(fc => fc.injectSpsDepthParam)
                         .NotNull()
                         .ToList();
-                    if (socket.IsValidPlugLength) {
-                        directTreeService.GetMath(Contacts.Value.directTree)
-                            .CopyInPlace(Contacts.Value.closestLength.Value, socket.plugLengthParameterName);
-                    }
                     foreach (var i in injectDepthToFullControllerParams) {
                         directTreeService.GetMath(Contacts.Value.directTree)
                             .CopyInPlace(Contacts.Value.closestDistancePlugLengths.Value, i);
+                    }
+                    var injectVelocityToFullControllerParams = globals.allBuildersInRun
+                        .OfType<FullControllerBuilder>()
+                        .Where(fc => fc.featureBaseObject.IsChildOf(socket.owner()))
+                        .Select(fc => fc.injectSpsVelocityParam)
+                        .NotNull()
+                        .ToList();
+                    foreach (var i in injectVelocityToFullControllerParams) {
+                        directTreeService.GetMath(Contacts.Value.directTree)
+                            .CopyInPlace(Contacts.Value.velocity.Value, i);
+                    }
+                    if (socket.IsValidPlugLength) {
+                        directTreeService.GetMath(Contacts.Value.directTree)
+                            .CopyInPlace(Contacts.Value.closestLength.Value, socket.plugLengthParameterName);
                     }
                     if (socket.IsValidPlugWidth) {
                         directTreeService.GetMath(Contacts.Value.directTree)
@@ -361,7 +372,7 @@ namespace VF.Service {
 
                         exclusiveTriggers.Add((name, toggleParam));
 
-                        if (socket.enableAuto && autoOnClip) {
+                        if (socket.enableAuto && autoOnClip != null) {
                             var autoReceiverObj = GameObjects.Create("AutoDistance", bakeResult.worldSpace);
                             var distParam = hapticContacts.AddReceiver(new HapticContactsService.ReceiverRequest() {
                                 obj = autoReceiverObj,
