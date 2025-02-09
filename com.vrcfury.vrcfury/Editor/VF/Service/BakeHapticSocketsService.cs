@@ -79,15 +79,11 @@ namespace VF.Service {
             VFABool multiOn = null;
             if (enableMulti) {
                 multiOn = fx.NewBool("multi", synced: true, networkSynced: false, saved: saved);
-                
-                // simplified
-                menu.NewMenuToggle($"{spsOptions.GetOptionsPath()}/Multi Mode", multiOn);
-                
-                // var multiFolder = $"{spsOptions.GetOptionsPath()}/<b>Dual Mode<\\/b>\n<size=20>Allows 2 active sockets";
-                // menu.NewMenuToggle($"{multiFolder}/Enable Dual Mode", multiOn);
-                // menu.NewMenuButton($"{multiFolder}/<b>WARNING<\\/b>\n<size=20>Everyone else must use SPS or TPS - NO DPS!");
-                // menu.NewMenuButton($"{multiFolder}/<b>WARNING<\\/b>\n<size=20>Nobody else can use a hole at the same time");
-                // menu.NewMenuButton($"{multiFolder}/<b>WARNING<\\/b>\n<size=20>DO NOT ENABLE MORE THAN 2");
+                var multiFolder = $"{spsOptions.GetOptionsPath()}/<b>Dual Mode<\\/b>\n<size=20>Allows 2 active sockets";
+                menu.NewMenuToggle($"{multiFolder}/Enable Dual Mode", multiOn);
+                menu.NewMenuButton($"{multiFolder}/<b>WARNING<\\/b>\n<size=20>Everyone else must use SPS or TPS - NO DPS!");
+                menu.NewMenuButton($"{multiFolder}/<b>WARNING<\\/b>\n<size=20>Nobody else can use a hole at the same time");
+                menu.NewMenuButton($"{multiFolder}/<b>WARNING<\\/b>\n<size=20>DO NOT ENABLE MORE THAN 2");
             }
 
             var autoSockets = new List<Tuple<string, VFABool, VFAFloat>>();
