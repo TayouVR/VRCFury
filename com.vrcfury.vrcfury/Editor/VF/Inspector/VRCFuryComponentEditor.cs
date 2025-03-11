@@ -53,7 +53,7 @@ namespace VF.Inspector {
                     $" If this doesn't help, let us know on the discord at https://vrcfury.com/discord");
             }
             
-            var isInstance = PrefabUtility.IsPartOfPrefabInstance(v);
+            var isInstance = false; // PrefabUtility.IsPartOfPrefabInstance(v);
 
             var container = new VisualElement();
 
