@@ -131,14 +131,14 @@ namespace VF.Feature.Base {
                     title = titleAttribute.Title;
                 }
 
-                var allowRootFeatures = AllowRootFeatures(gameObject, avatarObject);
-                if (builderType.GetCustomAttribute<FeatureRootOnlyAttribute>() != null && !allowRootFeatures) {
-                    return RenderFeatureEditor(title, VRCFuryEditorUtils.Error( 
-                        "To avoid abuse by prefab creators, this component can only be placed on the root object" +
-                        " containing the avatar descriptor, OR a child object containing ONLY vrcfury components."),
-                        builderType
-                    );
-                }
+                // var allowRootFeatures = AllowRootFeatures(gameObject, avatarObject);
+                // if (builderType.GetCustomAttribute<FeatureRootOnlyAttribute>() != null && !allowRootFeatures) {
+                //     return RenderFeatureEditor(title, VRCFuryEditorUtils.Error( 
+                //         "To avoid abuse by prefab creators, this component can only be placed on the root object" +
+                //         " containing the avatar descriptor, OR a child object containing ONLY vrcfury components."),
+                //         builderType
+                //     );
+                // }
 
                 var staticEditorMethod = builderType.GetMethods(BindingFlags.Static | BindingFlags.Public)
                     .Where(method => method.GetCustomAttribute<FeatureEditorAttribute>() != null)
