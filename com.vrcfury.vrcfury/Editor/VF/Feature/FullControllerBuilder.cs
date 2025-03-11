@@ -65,7 +65,7 @@ namespace VF.Feature {
                 }
             }
 
-            var toMerge = new List<(VRCAvatarDescriptor.AnimLayerType, VFController, RuntimeAnimatorController)>();
+            var fromControllers = new List<VFControllerWithVrcType>();
             foreach (var c in model.controllers) {
                 var source = c.controller.Get();
                 if (source == null) {
@@ -73,17 +73,33 @@ namespace VF.Feature {
                     continue;
                 }
                 var copy = VFController.CopyAndLoadController(source, c.type);
-                if (copy) {
-                    toMerge.Add((c.type, copy, source));
+                if (copy != null) {
+                    fromControllers.Add(copy);
                 }
             }
 
             // Record the offsets so we can fix them later
-            animatorLayerControlManager.RegisterControllerSet(toMerge.Select(pair => (pair.Item1, pair.Item2)));
+            animatorLayerControlManager.RegisterControllerSet(fromControllers);
 
-            foreach (var (type, from, source) in toMerge) {
-                var targetController = controllers.GetController(type);
-                Merge(from, targetController, source);
+            foreach (var from in fromControllers) {
+                var to = controllers.GetController(from.vrcType);
+
+                // Fail if trying to merge a controller that is on the avatar descriptor
+                if (VrcfObjectCloner.GetOriginal(to.GetRaw()) != null && to.GetRaw().GetCloneSource() == from.GetRaw().GetCloneSource()) {
+                    if (AssetDatabase.GetAssetPath(to.GetRaw().GetCloneSource())?.ToLower().Contains("goloco") ?? false) {
+                        throw new Exception(
+                            "You've installed GogoLoco using VRCFury, but your avatar descriptor also contains GogoLoco controllers." +
+                            " Make sure your Avatar Descriptor does not contain any gogoloco files."
+                        );
+                    } else {
+                        throw new Exception(
+                            "This Full Controller component is setup to merge the same controller file that is already on your avatar descriptor. VRCFury Full Controller components" +
+                            " should only contain the things you want to ADD to your avatar. Do not include your avatar's base files."
+                        );
+                    }
+                }
+
+                Merge(from, to);
             }
 
             foreach (var m in model.menus) {
@@ -224,12 +240,34 @@ namespace VF.Feature {
                 return "Go/" + name;
             }
 
-            if (model.globalParams.Contains("*")) {
-                if (model.globalParams.Contains("!" + name)) return controllers.MakeUniqueParamName(name);
-                return name;
+            var isGlobal = false;
+            foreach (var _global in model.globalParams) {
+                var global = _global;
+                var negative = false;
+                var wildcard = false;
+                if (global.StartsWith("!")) {
+                    negative = true;
+                    global = global.Substring(1);
+                }
+                if (global.EndsWith("*")) {
+                    wildcard = true;
+                    global = global.Substring(0, global.Length - 1);
+                }
+                if (name == global || (wildcard && name.StartsWith(global))) {
+                    if (negative) {
+                        isGlobal = false;
+                        break;
+                    } else {
+                        isGlobal = true;
+                    }
+                }
             }
-            if (model.globalParams.Contains(name)) return name;
-            return controllers.MakeUniqueParamName(name); 
+
+            if (isGlobal) {
+                return name;
+            } else {
+                return controllers.MakeUniqueParamName(name);
+            }
         }
 
         private static string RewritePath(FullController model, string path) {
@@ -257,9 +295,8 @@ namespace VF.Feature {
             return path;
         }
 
-        private void Merge(VFController from, ControllerManager toMain, RuntimeAnimatorController source) {
-            var to = toMain.GetRaw();
-            var type = toMain.GetType();
+        private void Merge(VFController from, ControllerManager to) {
+            var type = to.GetType();
 
             // Check for gogoloco
             foreach (var p in from.parameters) {
@@ -269,7 +306,7 @@ namespace VF.Feature {
             }
 
             // Rewrite clips
-            ((AnimatorController)from).Rewrite(AnimationRewriter.Combine(
+            from.Rewrite(AnimationRewriter.Combine(
                 AnimationRewriter.RewritePath(path => RewritePath(model, path)),
                 ClipRewriter.CreateNearestMatchPathRewriter(
                     animObject: GetBaseObject(model, featureBaseObject),
@@ -296,35 +333,17 @@ namespace VF.Feature {
                     return VRCExpressionsMenuExtensions.ForEachMenuItemResult.Continue;
                 });
                 var transitionParams = from.GetLayers()
-                    .SelectMany(l => new AnimatorIterator.Transitions().From(l))
+                    .SelectMany(l => l.allTransitions)
                     .SelectMany(transition => transition.conditions)
                     .Select(condition => condition.parameter)
                     .ToImmutableHashSet();
                 var afkCustomized = transitionParams.Contains("AFK");
                 var vrcEmoteCustomized = transitionParams.Contains("VRCEmote");
                 if (afkCustomized && (vrcEmoteCustomized || !menuUsesVrcEmote)) {
-                    foreach (var layer in toMain.GetLayers()) {
-                        if (toMain.GetLayerOwner(layer) == LayerSourceService.VrcDefaultSource) {
+                    foreach (var layer in to.GetLayers()) {
+                        if (to.GetLayerOwner(layer) == LayerSourceService.VrcDefaultSource) {
                             layer.Remove();
                         }
-                    }
-                }
-            }
-            
-            // Fail if trying to merge a controller that is on the avatar descriptor
-            foreach (var layer in toMain.GetLayers()) {
-                if (toMain.GetLayerOwner(layer) == LayerSourceService.AvatarDescriptorSource &&
-                    layerSourceService.GetSourceFile(layer) == source) {
-                    if (AssetDatabase.GetAssetPath(source)?.ToLower().Contains("goloco") ?? false) {
-                        throw new Exception(
-                            "You've installed GogoLoco using VRCFury, but your avatar descriptor also contains GogoLoco controllers." +
-                            " Make sure your Avatar Descriptor does not contain any gogoloco files."
-                        );
-                    } else {
-                        throw new Exception(
-                            "This Full Controller component is setup to merge the same controller file that is already on your avatar descriptor. VRCFury Full Controller components" +
-                            " should only contain the things you want to ADD to your avatar. Do not include your avatar's base files."
-                        );
                     }
                 }
             }
@@ -332,8 +351,8 @@ namespace VF.Feature {
             // Rip out the base controller if it's locomotion
             if (type == VRCAvatarDescriptor.AnimLayerType.Base || type == VRCAvatarDescriptor.AnimLayerType.TPose ||
                 type == VRCAvatarDescriptor.AnimLayerType.IKPose || type == VRCAvatarDescriptor.AnimLayerType.Sitting) {
-                foreach (var layer in toMain.GetLayers()) {
-                    var owner = toMain.GetLayerOwner(layer);
+                foreach (var layer in to.GetLayers()) {
+                    var owner = to.GetLayerOwner(layer);
                     if (owner == LayerSourceService.AvatarDescriptorSource || owner == LayerSourceService.VrcDefaultSource) {
                         layer.Remove();
                     } else {
@@ -350,9 +369,8 @@ namespace VF.Feature {
             // Merge Layers
             foreach (var layer in from.GetLayers()) {
                 layerSourceService.SetSourceToCurrent(layer);
-                layerSourceService.SetSourceFile(layer, source);
             }
-            toMain.TakeOwnershipOf(from);
+            to.TakeOwnershipOf(from);
 
             // Parameter smoothing
             if (type == VRCAvatarDescriptor.AnimLayerType.FX && model.smoothedPrms.Count > 0) {
@@ -360,7 +378,7 @@ namespace VF.Feature {
                 foreach (var smoothedParam in model.smoothedPrms) {
                     var rewritten = RewriteParamName(smoothedParam.name);
                     if (smoothedDict.ContainsKey(rewritten)) continue;
-                    var exists = toMain.GetRaw().GetParam(rewritten);
+                    var exists = to.GetParam(rewritten);
                     if (exists == null) continue;
                     if (exists.type != AnimatorControllerParameterType.Float) continue;
                     var target = new VFAFloat(exists.name, exists.defaultFloat);
@@ -392,12 +410,12 @@ namespace VF.Feature {
                     smoothedDict[rewritten] = smoothed;
                 }
 
-                toMain.GetRaw().RewriteParameters(name => {
+                to.RewriteParameters(name => {
                     if (smoothedDict.TryGetValue(name, out var smoothed)) {
                         return smoothed;
                     }
                     return name;
-                }, false, myLayers.Select(l => l.stateMachine).ToArray());
+                }, false, myLayers);
             }
         }
 
@@ -555,9 +573,12 @@ namespace VF.Feature {
                     "parameters in the avatar itself or other instances of the prop. Note that VRChat global " +
                     "parameters (such as gestures) are included by default.\n" +
                     "\n" +
-                    "If you want to make all parameters global, you can use enter a * . " +
+                    "If you want to make all parameters global, you can use enter a *\n" +
+                    "\n" +
+                    "You can also make a specific prefix global by adding a * to the end: MyGlobalParams/*\n" +
+                    "\n" +
                     "If you want to make all parameters global except for a few, you can mark specific parameters " +
-                    "as not global by prefixing them with a ! ."
+                    "as not global by prefixing them with a !"
                 );
                 adv.Add(a);
                 adv.Add(b);
@@ -607,7 +628,7 @@ namespace VF.Feature {
                     .NotNull()
                     .ToList();
                 var usesWdOff = controllers
-                    .SelectMany(c => new AnimatorIterator.States().From(c))
+                    .SelectMany(c => new AnimatorIterator.States().From(new VFController(c)))
                     .Any(state => !state.writeDefaultValues);
                 var rewrites = prop.FindPropertyRelative("rewriteBindings");
                 var warnings = VrcfAnimationDebugInfo.BuildDebugInfo(

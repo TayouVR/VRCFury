@@ -5,8 +5,12 @@ using UnityEditor;
 using UnityEngine;
 
 namespace VF.Utils {
-    public static class EditorWindowFinder {
-        private static HashSet<EditorWindow> activeWindows = new HashSet<EditorWindow>();
+    /**
+     * This exists because running Resources.FindObjectsOfTypeAll is really slow, and is otherwise
+     * the only way to find active EditorWindows.
+     */
+    internal static class EditorWindowFinder {
+        private static readonly HashSet<EditorWindow> activeWindows = new HashSet<EditorWindow>();
 
         [InitializeOnLoadMethod]
         private static void Init() {
