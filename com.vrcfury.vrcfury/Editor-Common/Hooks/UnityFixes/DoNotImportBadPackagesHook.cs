@@ -14,7 +14,7 @@ namespace VF.Hooks.UnityFixes {
      * from unitypackages when they are already installed in the project.
      */
     internal static class DoNotImportBadPackagesHook {
-        private static readonly string WarningDialogTitle = "Asset Import Warning from VRCFury";
+        //private static readonly string WarningDialogTitle = "Asset Import Warning from VRCFury";
         
         private abstract class Reflection : ReflectionHelper {
             public static readonly Type PackageImportWindow = ReflectionUtils.GetTypeFromAnyAssembly("UnityEditor.PackageImport");
@@ -75,8 +75,9 @@ namespace VF.Hooks.UnityFixes {
             return output.ToArray();
         }
 
-        private static EditorWindow lastCheckedWindow = null;
+        //private static EditorWindow lastCheckedWindow = null;
         private static void Check() {
+            /*
             var importWindow = EditorWindow.focusedWindow;
             if (!Reflection.PackageImportWindow.IsInstanceOfType(importWindow)) return;
             if (importWindow == lastCheckedWindow) return;
@@ -178,6 +179,7 @@ namespace VF.Hooks.UnityFixes {
                     }
                 };
             }
+            */
         }
     }
 }
