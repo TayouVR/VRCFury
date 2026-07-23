@@ -56,39 +56,39 @@ void sps_light_search(
 	}
 
 	// Fill in SPS light info from contacts
-	if (_SPS_Plus_Enabled > 0.5) {
-		float spsPlusDistance;
-		int spsPlusType;
-		sps_plus_search(spsPlusDistance, spsPlusType);
-		if (spsPlusType != SPS_TYPE_INVALID) {
-			bool spsLightFound = false;
-			int spsLightIndex = 0;
-			float spsMinError = 0;
-			for(int i = 0; i < 4; i++) {
-				if (lightType[i] != SPS_TYPE_SPSPLUS) continue;
-				const float3 myPos = lightLocalPos[i];
-				const float3 otherPos = lightLocalPos[spsLightIndex];
-				const float myError = abs(length(myPos) - spsPlusDistance);
-				if (myError > 0.2) continue;
-				const float otherError = spsMinError;
-
-				bool imBetter = false;
-				if (!spsLightFound) imBetter = true;
-				else if (myError < 0.3 && myPos.z >= 0 && otherPos.z < 0) imBetter = true;
-				else if (otherError < 0.3 && otherPos.z >= 0 && myPos.z < 0) imBetter = false;
-				else if (myError < otherError) imBetter = true;
-
-				if (imBetter) {
-					spsLightFound = true;
-					spsLightIndex = i;
-					spsMinError = myError;
-				}
-			}
-			if (spsLightFound) {
-				lightType[spsLightIndex] = spsPlusType;
-			}
-		}
-	}
+	// if (_SPS_Plus_Enabled > 0.5) {
+	// 	float spsPlusDistance;
+	// 	int spsPlusType;
+	// 	sps_plus_search(spsPlusDistance, spsPlusType);
+	// 	if (spsPlusType != SPS_TYPE_INVALID) {
+	// 		bool spsLightFound = false;
+	// 		int spsLightIndex = 0;
+	// 		float spsMinError = 0;
+	// 		for(int i = 0; i < 4; i++) {
+	// 			if (lightType[i] != SPS_TYPE_SPSPLUS) continue;
+	// 			const float3 myPos = lightLocalPos[i];
+	// 			const float3 otherPos = lightLocalPos[spsLightIndex];
+	// 			const float myError = abs(length(myPos) - spsPlusDistance);
+	// 			if (myError > 0.2) continue;
+	// 			const float otherError = spsMinError;
+	//
+	// 			bool imBetter = false;
+	// 			if (!spsLightFound) imBetter = true;
+	// 			else if (myError < 0.3 && myPos.z >= 0 && otherPos.z < 0) imBetter = true;
+	// 			else if (otherError < 0.3 && otherPos.z >= 0 && myPos.z < 0) imBetter = false;
+	// 			else if (myError < otherError) imBetter = true;
+	//
+	// 			if (imBetter) {
+	// 				spsLightFound = true;
+	// 				spsLightIndex = i;
+	// 				spsMinError = myError;
+	// 			}
+	// 		}
+	// 		if (spsLightFound) {
+	// 			lightType[spsLightIndex] = spsPlusType;
+	// 		}
+	// 	}
+	// }
 
 	// Find nearest socket root
 	int rootIndex = 0;
