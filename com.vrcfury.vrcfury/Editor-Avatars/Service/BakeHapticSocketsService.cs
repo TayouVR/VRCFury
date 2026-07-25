@@ -282,21 +282,21 @@ namespace VF.Service {
                 }
             }
 
-            if (legacyOn != null && exclusiveTriggers.Count >= 2) {
-                var exclusiveLayer = actionController.NewLayer("SPS - Socket Exclusivity");
-                exclusiveLayer.NewState("Start");
-                legacyOn.CopyTo(actionController);
-                for (var i = 0; i < exclusiveTriggers.Count; i++) {
-                    var (name, on) = exclusiveTriggers[i];
-                    on.CopyTo(actionController);
-                    var state = exclusiveLayer.NewState(name);
-                    state.TransitionsFromAny().When(on.IsTrue()
-                        .And(actionController.IsLocal().IsTrue()).And(legacyOn.IsTrue()));
-                    for (var j = 0; j < exclusiveTriggers.Count; j++) {
-                        if (i != j) state.Drives(exclusiveTriggers[j].on, false);
-                    }
-                }
-            }
+            // if (legacyOn != null && exclusiveTriggers.Count >= 2) {
+            //     var exclusiveLayer = actionController.NewLayer("SPS - Socket Exclusivity");
+            //     exclusiveLayer.NewState("Start");
+            //     legacyOn.CopyTo(actionController);
+            //     for (var i = 0; i < exclusiveTriggers.Count; i++) {
+            //         var (name, on) = exclusiveTriggers[i];
+            //         on.CopyTo(actionController);
+            //         var state = exclusiveLayer.NewState(name);
+            //         state.TransitionsFromAny().When(on.IsTrue()
+            //             .And(actionController.IsLocal().IsTrue()).And(legacyOn.IsTrue()));
+            //         for (var j = 0; j < exclusiveTriggers.Count; j++) {
+            //             if (i != j) state.Drives(exclusiveTriggers[j].on, false);
+            //         }
+            //     }
+            // }
 
             if (autoOn != null && autoSockets.Count > 0) {
                 var autoProximity = fx.CreateUniqueFloat("AutoContact");
