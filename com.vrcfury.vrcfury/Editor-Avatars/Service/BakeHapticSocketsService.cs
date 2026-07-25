@@ -380,11 +380,11 @@ namespace VF.Service {
                         }
                     }
 
-                    if (legacyOffClip != null) {
-                        foreach (var child in new[] { bakeResult.lights }.NotNull()) {
-                            legacyOffClip.SetEnabled(child, false);
-                        }
-                    }
+                    // if (legacyOffClip != null) {
+                    //     foreach (var child in new[] { bakeResult.lights }.NotNull()) {
+                    //         legacyOffClip.SetEnabled(child, false);
+                    //     }
+                    // }
 
                     if (toggleParam != null && bakeResult.lights != null) {
                         exclusiveTriggers.Add((oscId, toggleParam));
