@@ -6,7 +6,8 @@
         "VRCFury-Editor-Common",
         "VRC.SDKBase.Editor.BuildPipeline",
         "VRC.SDKBase.Editor",
-        "VRC.SDK3A.Editor"
+        "VRC.SDK3A.Editor",
+        "nadena.dev.modular-avatar.core"
     ],
     "includePlatforms": [
         "Editor"
@@ -155,6 +156,11 @@
             "name": "com.vrchat.avatars",
             "expression": "3.10.6",
             "define": "VRCSDK_HAS_FACE_TRACKING"
+        },
+        {
+            "name": "nadena.dev.modular-avatar",
+            "expression": "1.17",
+            "define": "MA_EXISTS"
         }
     ],
     "noEngineReferences": false

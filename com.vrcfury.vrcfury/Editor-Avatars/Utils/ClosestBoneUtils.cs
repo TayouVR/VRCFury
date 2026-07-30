@@ -1,5 +1,8 @@
 using System.Collections.Generic;
 using System.Linq;
+#if MA_EXISTS 
+using nadena.dev.modular_avatar.core; 
+#endif 
 using JetBrains.Annotations;
 using UnityEditor;
 using UnityEngine;
@@ -23,6 +26,9 @@ namespace VF.Utils {
         private readonly VRCFArmatureCache armatureCache;
         private readonly Dictionary<VFGameObject, HumanBodyBones?> results = new();
         private readonly Dictionary<VFGameObject, List<ArmatureLink>> armatureLinks = new();
+#if MA_EXISTS 
+        private readonly Dictionary<VFGameObject, List<ModularAvatarBoneProxy>> maBoneProxies = new();
+#endif 
 
         [VFAutowired]
         public ClosestBoneUtils(VRCFObjectPathCache objectPaths, VRCFArmatureCache armatureCache) {
@@ -53,6 +59,31 @@ namespace VF.Utils {
                 .OfType<ArmatureLink>()
                 .ToList();
         }
+ 
+#if MA_EXISTS 
+        private List<ModularAvatarBoneProxy> GetMaBoneProxies(VFGameObject rootObject) { 
+            if (maBoneProxies.TryGetValue(rootObject, out var cached)) return cached; 
+            return maBoneProxies[rootObject] = rootObject 
+                .GetComponentsInSelfAndChildren<ModularAvatarBoneProxy>() 
+                .ToList(); 
+        } 
+ 
+        public static VFGameObject GetProbableBoneProxyParent( 
+            ModularAvatarBoneProxy boneProxy, 
+            VFGameObject avatarObject, 
+            VFGameObject obj, 
+            VRCFObjectPathCache objectPaths, 
+            VRCFArmatureCache armatureCache 
+        ) { 
+            try { 
+                var linkFrom = boneProxy.gameObject; 
+                if (linkFrom == null || !obj.IsSameOrChildOf(linkFrom)) return null; 
+                return boneProxy.target.gameObject; 
+            } catch (System.Exception) { 
+                return null; 
+            } 
+        } 
+#endif 
 
         public HumanBodyBones? GetClosestHumanoidBone(VFGameObject obj) {
             return results.GetOrCreate(obj, () => GetClosestHumanoidBoneUncached(obj));
@@ -68,6 +99,11 @@ namespace VF.Utils {
 
             var followConstraints = true;
             var followArmatureLink = true;
+            
+#if MA_EXISTS 
+            var followMaBoneProxy = true; 
+            var maBoneProxies = GetMaBoneProxies(avatarObject); 
+#endif 
 
             var armatureLinks = GetArmatureLinks(avatarObject);
 
@@ -96,6 +132,24 @@ namespace VF.Utils {
                         continue;
                     }
                 }
+ 
+#if MA_EXISTS 
+                if (followMaBoneProxy) { 
+                    VFGameObject foundParent = null; 
+                    foreach (var boneProxy in maBoneProxies) { 
+                        var p = GetProbableBoneProxyParent(boneProxy, avatarObject, current, objectPaths, armatureCache); 
+                        if (p != null && !alreadyChecked.Contains(p)) { 
+                            foundParent = p; 
+                            break; 
+                        } 
+                    } 
+ 
+                    if (foundParent != null) { 
+                        current = foundParent; 
+                        continue; 
+                    } 
+                } 
+#endif 
                 
                 if (followConstraints) {
                     var positionTo = current.GetConstraints()
