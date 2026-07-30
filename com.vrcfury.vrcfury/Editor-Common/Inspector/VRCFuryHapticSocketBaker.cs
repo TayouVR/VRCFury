@@ -99,14 +99,14 @@ namespace VF.Inspector {
                             throw new Exception($"SPS guided path stop {i + 1} is missing its transform.");
                         }
                     }
-                    foreach (var stop in guidedPathStops) {
-                        var stopObj = stop.transform.asVf();
-                        if (stopObj.GetComponentsInSelfAndChildren<VRCFuryHapticSocket>().Any()) {
-                            throw new Exception(
-                                "SPS guided path stops should not contain their own sockets. Invalid stop: "
-                                + stopObj.GetDebugPath());
-                        }
-                    }
+                    // foreach (var stop in guidedPathStops) {
+                    //     var stopObj = stop.transform.asVf();
+                    //     if (stopObj.GetComponentsInSelfAndChildren<VRCFuryHapticSocket>().Any()) {
+                    //         throw new Exception(
+                    //             "SPS guided path stops should not contain their own sockets. Invalid stop: "
+                    //             + stopObj.GetDebugPath());
+                    //     }
+                    // }
                     var guidedPath = guidedPathStops
                         .Select(stop => stop.transform.asVf())
                         .ToList();
