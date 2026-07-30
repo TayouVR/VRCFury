@@ -71,11 +71,11 @@ namespace VF.Inspector {
                     if (stop == null || stop.transform == null)
                         throw new Exception($"SPS guided path stop {i + 1} is missing its transform.");
                 }
-                foreach (var stop in stops) {
-                    if (stop.transform.asVf().GetComponentsInSelfAndChildren<VRCFuryHapticSocket>().Any())
-                        throw new Exception("SPS guided path stops should not contain their own sockets. Invalid stop: "
-                            + stop.transform.asVf().GetDebugPath());
-                }
+                // foreach (var stop in stops) {
+                //     if (stop.transform.asVf().GetComponentsInSelfAndChildren<VRCFuryHapticSocket>().Any())
+                //         throw new Exception("SPS guided path stops should not contain their own sockets. Invalid stop: "
+                //             + stop.transform.asVf().GetDebugPath());
+                // }
                 var group = nextGroupId++;
                 if (group > HapticUtils.GroupCount)
                     throw new Exception($"SPS3 supports at most {HapticUtils.GroupCount} sockets per build.");
