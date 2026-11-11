@@ -30,6 +30,7 @@ float3 sps_bezierDerivative(float3 p0, float3 p1, float3 p2, float3 p3, float t)
 inline void sps_bezierSolve(
 	float3 p0, float3 p1, float3 p2, float3 p3,
 	float lookingForLength,
+	float3 initialForward,
 	float3 initialUp,
 	out float remainingLength,
 	out float3 position,
@@ -37,7 +38,6 @@ inline void sps_bezierSolve(
 	out float3 up
 ) {
 	float sampleT = 0;
-	float3 approximateUp = initialUp;
 	float totalLength = 0;
 	bool exhausted = false;
 	// Preserve the original <= 0 early-out, but share the final evaluation.
@@ -47,32 +47,29 @@ inline void sps_bezierSolve(
 		float3 lastPoint = p0;
 		float lastT = 0;
 		float lastLength = 0;
-		float3 lastUp = initialUp;
 		[fastopt]
 		for (int i = 1; i <= SPS_BEZIER_SAMPLES; i++) {
 			float t = float(i) / SPS_BEZIER_SAMPLES;
 			float3 currentPoint = sps_bezier(p0, p1, p2, p3, t);
-			float3 currentForward = sps_normalize(sps_bezierDerivative(p0, p1, p2, p3, t));
-			float3 currentUp = sps_nearest_normal(currentForward, lastUp);
 			totalLength += length(currentPoint - lastPoint);
 			if (lookingForLength <= totalLength) {
 				float fraction = sps_map(lookingForLength, lastLength, totalLength, 0, 1);
 				sampleT = lerp(lastT, t, fraction);
-				approximateUp = lerp(lastUp, currentUp, fraction);
 				exhausted = false;
 				break;
 			}
 			lastT = t;
 			lastLength = totalLength;
-			lastUp = currentUp;
-			approximateUp = currentUp;
 			lastPoint = currentPoint;
 		}
 	}
 	remainingLength = exhausted ? max(lookingForLength - totalLength, 0) : 0;
 	position = sampleT == 0 ? p0 : sampleT == 1 ? p3 : sps_bezier(p0, p1, p2, p3, sampleT);
 	forward = sps_normalize(sps_bezierDerivative(p0, p1, p2, p3, sampleT));
-	up = sps_nearest_normal(forward, approximateUp);
+	// Selore-style: shortest-arc rotate the root forward onto the tangent,
+	// and apply the same minimal rotation to the root up (twist-free).
+	// No roll is ever introduced relative to the root frame.
+	up = mul(sps_from_to_rotation(initialForward, forward), initialUp);
 }
 
 #endif

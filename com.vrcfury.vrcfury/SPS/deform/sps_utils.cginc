@@ -61,6 +61,26 @@ inline float sps_object_scale_world() {
     return length(sps_object_direction_world(float3(0, 0, 1)));
 }
 
+// Shortest-arc rotation taking 'from' to 'to' (same construction as Selore's
+// FromToRotation). Twist-free relative to the 'from' direction: the rotation
+// happens only about cross(from, to), so no roll is ever introduced.
+inline float3x3 sps_from_to_rotation(float3 fromVec, float3 toVec) {
+	float3 v = cross(fromVec, toVec);
+	float e = dot(fromVec, toVec);
+	if (e > 0.999999) return float3x3(1,0,0, 0,1,0, 0,0,1); // parallel: identity
+	if (e < -0.999999) {
+		// Antiparallel: fall back to identity (same simplified behavior as
+		// Selore's FromToRotation; a 180deg bend is a snap either way)
+		return float3x3(1,0,0, 0,1,0, 0,0,1);
+	}
+	float h = 1.0 / (1.0 + e);
+	return float3x3(
+		e + h * v.x * v.x,      h * v.x * v.y - v.z,  h * v.x * v.z + v.y,
+		h * v.x * v.y + v.z,    e + h * v.y * v.y,    h * v.y * v.z - v.x,
+		h * v.x * v.z - v.y,    h * v.y * v.z + v.x,  e + h * v.z * v.z
+	);
+}
+
 inline float3 sps_rotate_around_axis(float3 v, float3 axis, float angle) {
     float sine = sin(angle);
     float cosine = cos(angle);

@@ -51,7 +51,14 @@ inline void sps_deform_walk_chain(
     outUp = sps_nearest_normal(outForward, path.plugUp);
     float3 startPoint = outPosition;
     float3 startForward = outForward;
-    float3 currentUp = outUp;
+    // Selore-style twist: every frame along the whole chain is derived by
+    // shortest-arc rotating the ROOT forward onto the current tangent, and
+    // applying that same minimal rotation to the root up. No frame is ever
+    // carried along the curve, so twist stays locked to the plug root
+    // regardless of socket arrangement.
+    const float3 rootForward = outForward;
+    const float3 rootUp = outUp;
+    uint previousFlags = 0u;
 
     [fastopt]
     for (uint sampleIndex = 1; sampleIndex <= path.nodeCount; sampleIndex++) {
@@ -80,7 +87,7 @@ inline void sps_deform_walk_chain(
             // Coincident endpoints can leave no curve length or derivative to solve.
             outPosition = endPoint;
             outForward = endForward;
-            outUp = sps_nearest_normal(endForward, currentUp);
+            outUp = mul(sps_from_to_rotation(rootForward, outForward), rootUp);
         } else {
             sps_bezierSolve(
                 p0,
@@ -88,7 +95,8 @@ inline void sps_deform_walk_chain(
                 p2,
                 p3,
                 remainingDistance,
-                currentUp,
+                rootForward,
+                rootUp,
                 nextRemainingDistance,
                 outPosition,
                 outForward,
@@ -103,7 +111,6 @@ inline void sps_deform_walk_chain(
         // nearly coincident control points can lose its direction to float precision.
         outForward = endForward;
         outUp = sps_nearest_normal(outForward, outUp);
-        currentUp = outUp;
         if (sps_path_hole_weights[sampleIndex] < 0) {
             firstHole = 0;
         } else if (firstHole == 0) {
@@ -113,6 +120,10 @@ inline void sps_deform_walk_chain(
         startPoint = endPoint;
         startForward = endForward;
     }
+    
+    // Recompute the final up from the final forward using the same
+    // root-relative shortest-arc rotation
+    outUp = mul(sps_from_to_rotation(rootForward, outForward), rootUp);
 
     if (firstHole != 0) {
         outRadiusMult = sps_sample_hole_taper(path, firstHole, distanceFromHole, remainingDistance);
