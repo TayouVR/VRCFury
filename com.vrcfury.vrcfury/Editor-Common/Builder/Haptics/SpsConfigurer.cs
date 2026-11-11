@@ -152,23 +152,15 @@ namespace VF.Builder.Haptics {
                 .Where(vrcFuryHapticSocket => !EditorOnlyUtils.IsInsideEditorOnly(vrcFuryHapticSocket.owner()))
                 .ToList();
             
-            Vector3 lastSocketPosition = Vector3.zero;
-            int currentNameIndex = 0;
-            string[] socketNamesInOrder = { "hipsback", "hipsfront" };
-            bool isFirstSocket = true;
-            foreach (var vrcFuryHapticSocket in hipSockets) {
-                if (!isFirstSocket && vrcFuryHapticSocket.owner().worldPosition != lastSocketPosition) {
-                    currentNameIndex++;
-                    if (currentNameIndex >= socketNamesInOrder.Length) return null;
-                }
-                
-                //Debug.Log($"name: {vrcFuryHapticSocket.name}, tag: {socketNamesInOrder[currentNameIndex]}");
-                if (vrcFuryHapticSocket == socket) return socketNamesInOrder[currentNameIndex];
-                
-                lastSocketPosition = vrcFuryHapticSocket.owner().worldPosition;
-                isFirstSocket = false;
-            }
+            var groups = hipSockets
+                .GroupBy(s => s.owner().worldPosition)
+                .Take(2)
+                .ToList(); // GroupBy preserves encounter order, and hipSockets is already sorted back-to-front
             
+            if (groups.Count < 2) return null;
+            
+            if (groups[0].Key == socket.worldPosition) return "hipsback";
+            if (groups[1].Key == socket.worldPosition) return "hipsfront";
             return null;
         }
 
