@@ -41,6 +41,29 @@ namespace VF.Exceptions {
         }
 
         private static void DisplayErrorPopup(Exception e) {
+            // Crash-safe dump: Unity's Linux logger can abort() while formatting nested exceptions,
+            // so write the full exception chain to disk BEFORE touching Debug.LogException.
+            try {
+                var dumpPath = "/tmp/vrcf_last_exception.txt";
+                var sb = new System.Text.StringBuilder();
+                sb.AppendLine("=== VRCFury exception dump " + DateTime.Now.ToString("o") + " ===");
+                var cur = e;
+                var depth = 0;
+                while (cur != null) {
+                    sb.AppendLine($"--- [{depth}] {cur.GetType().FullName} ---");
+                    try { sb.AppendLine(cur.Message); } catch (Exception ex) { sb.AppendLine("<Message threw: " + ex.GetType().Name + ">"); }
+                    try { sb.AppendLine(cur.StackTrace); } catch (Exception ex) { sb.AppendLine("<StackTrace threw: " + ex.GetType().Name + ">"); }
+                    try { cur = cur.InnerException; } catch { cur = null; }
+                    depth++;
+                }
+                File.AppendAllText(dumpPath, sb.ToString());
+                try {
+                    File.AppendAllText(dumpPath, "=== Full ToString() ===\n" + e.ToString() + "\n");
+                } catch (Exception ex) {
+                    File.AppendAllText(dumpPath, "=== Full ToString() threw: " + ex.GetType().Name + ": " + ex.Message + " ===\n");
+                }
+            } catch {}
+
             Debug.LogException(e);
                 
             var sneaky = SneakyException.GetFromStack(e);
