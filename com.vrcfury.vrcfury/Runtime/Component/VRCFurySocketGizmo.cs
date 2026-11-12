@@ -29,14 +29,14 @@ namespace VF.Component {
         public SocketGizmoData data = new SocketGizmoData();
         public bool show = true;
 
-        bool lastShow = false;
-
-        private void Update() {
-            if (show && !lastShow) {
-                try { EnableSceneGizmos?.Invoke(); } catch (Exception) {}
-            }
-            lastShow = show;
-        }
+        // bool lastShow = false;
+        //
+        // private void Update() {
+        //     if (show && !lastShow) {
+        //         try { EnableSceneGizmos?.Invoke(); } catch (Exception) {}
+        //     }
+        //     lastShow = show;
+        // }
 
         public static Action EnableSceneGizmos;
     }
